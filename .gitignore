@@ -1,0 +1,29 @@
+# Simulation artifacts
+*.vcd
+*.vvp
+build/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# LaTeX auxiliary files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+
+# OS and Editor artifacts
+.DS_Store
+.vscode/
+.idea/
