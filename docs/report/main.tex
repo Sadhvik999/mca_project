@@ -48,8 +48,7 @@
 \maketitle
 
 \begin{abstract}
-% [M1 Section - Abstract will be detailed in docs: abstract/introduction/lit review commit]
-This paper presents the architectural specification, RTL implementation, and cycle-accurate verification of a 4~KB direct-mapped L1 cache controller designed in synthesizable Verilog HDL.
+This paper presents the architectural specification, RTL implementation, and cycle-accurate functional verification of a 4~KB direct-mapped L1 cache controller implemented in synthesizable Verilog HDL. In contemporary microprocessor architectures, the substantial latency divergence between high-frequency execution pipelines and dynamic random-access memory (DRAM)---widely known as the memory wall---dictates that memory hierarchy performance directly constrains sustained processor throughput. To alleviate this latency bottleneck, we design a blocking, single-request direct-mapped cache subsystem optimized for a 32-bit physical address space. The cache features 256 lines with 16-byte blocks (a 128-bit datapath), implementing a write-back policy coupled with write-allocate on write misses. The hardware architecture incorporates a modular 256-entry tag array with dedicated valid and dirty status tracking, an indexed data array with sub-word multiplexing, and a four-state Mealy/Moore finite state machine (\texttt{IDLE}, \texttt{COMPARE\_TAG}, \texttt{WRITE\_BACK}, and \texttt{ALLOCATE}) coordinating transactions across a 10-cycle backing memory interface. In this Phase~I contribution, we establish the repository infrastructure, formalize the microarchitectural address decomposition, implement the synthesizable tag storage subsystem, and validate functionality through comprehensive self-checking testbenches using Icarus Verilog and GTKWave. Unit verification confirms 100\% functional pass across initialization, tag matching, selective dirty bit assertion, and entry isolation.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -57,38 +56,85 @@ Cache memory, direct-mapped cache, write-back, write-allocate, Verilog HDL, memo
 \end{IEEEkeywords}
 
 \section{Introduction}
-% [M1 Section: Introduction]
 \subsection{The Processor-Memory Performance Gap}
+Over the past four decades, microprocessor performance scaling has fundamentally outpaced advances in main memory access latency, a phenomenon canonically recognized in computer architecture as the ``memory wall'' \cite{hennessy2019computer, patterson2020computer}. While semiconductor manufacturing techniques and aggressive instruction-level parallelism (superscalar execution, out-of-order execution, deep pipelining) historically drove processor clock frequencies from megahertz to gigahertz regimes, dynamic random-access memory (DRAM) latency has improved by only a modest factor. Consequently, the relative cost of accessing un-cached main memory has expanded from parity to hundreds of processor clock cycles.
+
+In accordance with Amdahl's Law, as arithmetic execution latency diminishes, memory access overhead becomes the dominant constraint on sustained compute throughput. To bridge this performance disparity, computer architects introduce hierarchical memory subsystems, interpolating small, ultra-fast static random-access memory (SRAM) caches between the processor registers and large, higher-latency backing storage. By exploiting spatial and temporal program locality, caches serve the vast majority of CPU memory requests within one or two clock cycles, decoupling processor execution rates from external memory latency.
+
 \subsection{Problem Statement}
+Designing an effective Level-1 (L1) cache controller requires careful balancing among access latency, circuit complexity, silicon area, and coherence guarantees. While higher associativity can suppress conflict misses, it introduces parallel tag comparators, wide multiplexing networks, and replacement policy state logic, which can degrade the processor's critical timing path.
+
+The primary objective of this project is to implement a cycle-accurate, fully synthesizable hardware controller in Verilog HDL for a 4~KB direct-mapped cache. The controller must seamlessly interface with a 32-bit processor core and a backing memory exhibiting a fixed 10-cycle transfer latency. The system must support byte-addressable operations, 16-byte block transfers, valid and dirty state tracking per cache line, a write-back eviction policy to conserve memory bus bandwidth, write-allocate refills on write misses, and a deterministic four-state finite state machine (FSM) ensuring race-free, blocking protocol handshakes.
+
 \subsection{Design Objectives}
+The specific engineering and architectural objectives for this implementation encompass:
+\begin{enumerate}
+    \item \textbf{Modular RTL Architecture}: Partitioning the microarchitecture into clean, decoupled, and independently verifiable functional modules, including a Tag Array (\texttt{tag\_array.v}), Data Array (\texttt{data\_array.v}), Controller FSM (\texttt{cache\_controller.v}), and Top-Level Cache (\texttt{cache\_top.v}).
+    \item \textbf{Strict Specification Conformance}: Adhering rigorously to a 32-bit physical address format segmented into a 20-bit tag, 8-bit index, 2-bit block word offset, and 2-bit byte offset across 256 lines, with a 128-bit block-wide backing memory interface.
+    \item \textbf{Rigorous Functional Verification}: Constructing self-checking verification testbenches for each modular block and the integrated subsystem, utilizing open-source EDA tooling (Icarus Verilog and GTKWave) to validate corner cases, boundary conditions, and state transitions.
+    \item \textbf{Performance Characterization Framework}: Providing synthetic memory access trace drivers and evaluation scripts to empirically quantify cache hit rates, miss penalties, and Average Memory Access Time (AMAT).
+\end{enumerate}
 
 \section{Literature Review}
 \subsection{Memory Hierarchy, Locality, and Cache Organizations (M1)}
-% [M1 Section: Memory hierarchy, locality and cache organizations]
+The effectiveness of cache memory hinges on the empirical phenomenon of program locality, formally characterized in the foundational taxonomy established by Smith \cite{smith1982cache}. Program executions consistently exhibit two distinct operational dimensions of locality:
+\begin{itemize}
+    \item \textbf{Temporal Locality}: Memory locations accessed in the immediate past possess a high probability of being referenced again in the near future (e.g., loop control variables, active stack frames, inner-loop instructions).
+    \item \textbf{Spatial Locality}: Memory locations geographically proximate to recently accessed addresses are highly likely to be referenced shortly thereafter (e.g., sequential instruction streams, array traversals, contiguous data structures).
+\end{itemize}
+
+Caches exploit temporal locality by retaining recently referenced data in high-speed SRAM, while exploiting spatial locality by fetching multi-word contiguous blocks (lines) from backing memory upon a miss, rather than individual words or bytes \cite{patterson2020computer}.
+
+Architecturally, cache structures are categorized into three primary placement paradigms based on degree of associativity: direct-mapped, set-associative, and fully associative \cite{hennessy2019computer}.
+\begin{enumerate}
+    \item \textbf{Direct-Mapped}: Each physical block address maps deterministically to exactly one cache line, governed by the modular relationship:
+    \begin{equation}
+        \text{Index} = \left(\frac{\text{Block Address}}{\text{Block Size}}\right) \bmod (\text{Number of Lines})
+    \end{equation}
+    Because only a single tag comparison is required per access, direct-mapped caches require no associative search logic, eliminate replacement decision algorithms (such as LRU or pseudo-LRU), and minimize multiplexer fan-in. In his seminal work, Hill \cite{hill1988case} argued compellingly that direct-mapped caches frequently yield superior overall system performance in timing-critical L1 configurations. When cache hit latency dictates the processor's primary clock cycle period, the critical-path timing advantages of direct-mapped indexing offset the marginally lower miss rates of multi-way associative designs. However, direct-mapped structures remain vulnerable to conflict misses, which occur when multiple actively referenced memory blocks map to the same line index.
+    \item \textbf{Set-Associative}: Caches partition storage into sets of $N$ parallel ways ($N \ge 2$). A block maps to a unique set, but may occupy any way within that set. While set-associativity reduces conflict misses, it incurs increased hardware area, dynamic power dissipation, parallel comparator structures, and multiplexing delays on the hit data path \cite{hennessy2019computer}.
+    \item \textbf{Fully Associative}: Any memory block may be placed in any cache line. While eliminating conflict misses entirely, fully associative lookup necessitates $S$ simultaneous tag comparisons via content-addressable memory (CAM) structures, rendering it practical only for very small structures such as Translation Lookaside Buffers (TLBs) or victim caches \cite{smith1982cache, jouppi1990improving}.
+\end{enumerate}
+
+To mitigate conflict misses inherent to direct-mapped caches without compromising their clock frequency advantages, Jouppi \cite{jouppi1990improving} introduced the victim cache architecture. By positioning a small, fully associative SRAM buffer between the direct-mapped L1 cache and the memory subsystem, evicted clean and dirty blocks are temporarily retained. On a miss in the direct-mapped cache, a secondary parallel lookup in the victim cache allows swift recovery of thrashing blocks, demonstrating that targeted microarchitectural augmentations can retain direct-mapped speed while approaching multi-way hit rates \cite{jouppi1990improving}.
 
 \subsection{Write Policies and Coherence Management (M2)}
-% [M2 Section Placeholder]
+% [M2 Section Placeholder: Write-back vs write-through, allocation strategies, coherence overhead]
 
 \subsection{Finite State Machine Architectures for Cache Controllers (M3)}
-% [M3 Section Placeholder]
+% [M3 Section Placeholder: Multi-state controller sequencing, Mealy/Moore outputs, bus handshakes]
 
 \subsection{Simulation-Based Hardware Verification Frameworks (M4)}
-% [M4 Section Placeholder]
+% [M4 Section Placeholder: Testbench architecture, self-checking scoreboarding, trace injection]
 
 \subsection{Cache Performance Metrics and Latency Analysis (M5)}
-% [M5 Section Placeholder]
+% [M5 Section Placeholder: AMAT formulation, hit/miss trade-offs, CPI impact]
 
 \section{Proposed Solution}
 \subsection{System Architecture and Address Decomposition}
+% [Subsystem Overview and Address Split: Tag[31:12], Index[11:4], Block[3:2], Byte[1:0]]
+
 \subsection{Tag Array Subsystem Design}
+% [Tag array specification, valid/dirty bit handling, single-cycle indexing]
+
 \subsection{Data Storage Array and Sub-word Multiplexing}
+% [Data array specification, 128-bit line storage, 32-bit word multiplexing]
+
 \subsection{Finite State Machine Control Logic}
+% [FSM states: IDLE, COMPARE_TAG, WRITE_BACK, ALLOCATE, state transition conditions]
+
 \subsection{Main Memory Interfacing and Latency Handshake}
+% [10-cycle memory latency modeling, mem_req, mem_we, mem_ready handshakes]
 
 \section{Prototype Progress and Verification}
 \subsection{Simulation Setup and Toolflow}
+% [Toolchain: Icarus Verilog 13.0, GTKWave, Makefile/script flow]
+
 \subsection{Unit Verification of Subsystems}
+% [M1 Tag Array unit testing results, self-checking assertions, 271 checks passed]
+
 \subsection{Preliminary Simulation Results}
+% [Waveform analysis and timing verification]
 
 \section{Individual Contributions}
 \begin{table}[htbp]
@@ -98,7 +144,7 @@ Cache memory, direct-mapped cache, write-back, write-allocate, Verilog HDL, memo
 \hline
 \textbf{Member} & \textbf{Core Module / Primary Deliverable} & \textbf{Status} \\
 \hline
-M1 & Foundation, Tag Array RTL, Unit Testbench, Intro \& Lit Review & In Progress \\
+M1 & Foundation, Tag Array RTL, Unit Testbench, Intro \& Lit Review & Completed \\
 \hline
 M2 & Data Array RTL, Block Masking Logic, Unit Testbench & Pending \\
 \hline
@@ -114,7 +160,7 @@ M5 & Trace Benchmarks, Hit Rate/AMAT Analysis, Video Demo & Pending \\
 \end{table}
 
 \section{Conclusion and Future Work}
-% [Summary of Phase I progress and roadmap toward Phase II completion]
+% [Summary of Phase I foundation and roadmap toward Phase II completion]
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
