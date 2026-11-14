@@ -1,0 +1,122 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{array}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Design and Verification of a Direct-Mapped Cache Controller in Verilog}
+
+\author{
+    \IEEEauthorblockN{Mustyala Sadhvik (M1)}
+    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
+    \textit{Course: Modern Computer Architecture} \\
+    Email: musthyala.sadhvik2024@nst.rishihood.edu.in}
+    \and
+    \IEEEauthorblockN{Team Member 2 (M2)}
+    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
+    \textit{Course: Modern Computer Architecture} \\
+    Email: member2@example.edu}
+    \and
+    \IEEEauthorblockN{Team Member 3 (M3)}
+    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
+    \textit{Course: Modern Computer Architecture} \\
+    Email: member3@example.edu}
+    \and
+    \IEEEauthorblockN{Team Member 4 (M4)}
+    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
+    \textit{Course: Modern Computer Architecture} \\
+    Email: member4@example.edu}
+    \and
+    \IEEEauthorblockN{Team Member 5 (M5)}
+    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
+    \textit{Course: Modern Computer Architecture} \\
+    Email: member5@example.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+% [M1 Section - Abstract will be detailed in docs: abstract/introduction/lit review commit]
+This paper presents the architectural specification, RTL implementation, and cycle-accurate verification of a 4~KB direct-mapped L1 cache controller designed in synthesizable Verilog HDL.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Cache memory, direct-mapped cache, write-back, write-allocate, Verilog HDL, memory hierarchy, cache controller FSM.
+\end{IEEEkeywords}
+
+\section{Introduction}
+% [M1 Section: Introduction]
+\subsection{The Processor-Memory Performance Gap}
+\subsection{Problem Statement}
+\subsection{Design Objectives}
+
+\section{Literature Review}
+\subsection{Memory Hierarchy, Locality, and Cache Organizations (M1)}
+% [M1 Section: Memory hierarchy, locality and cache organizations]
+
+\subsection{Write Policies and Coherence Management (M2)}
+% [M2 Section Placeholder]
+
+\subsection{Finite State Machine Architectures for Cache Controllers (M3)}
+% [M3 Section Placeholder]
+
+\subsection{Simulation-Based Hardware Verification Frameworks (M4)}
+% [M4 Section Placeholder]
+
+\subsection{Cache Performance Metrics and Latency Analysis (M5)}
+% [M5 Section Placeholder]
+
+\section{Proposed Solution}
+\subsection{System Architecture and Address Decomposition}
+\subsection{Tag Array Subsystem Design}
+\subsection{Data Storage Array and Sub-word Multiplexing}
+\subsection{Finite State Machine Control Logic}
+\subsection{Main Memory Interfacing and Latency Handshake}
+
+\section{Prototype Progress and Verification}
+\subsection{Simulation Setup and Toolflow}
+\subsection{Unit Verification of Subsystems}
+\subsection{Preliminary Simulation Results}
+
+\section{Individual Contributions}
+\begin{table}[htbp]
+\caption{Team Member Task Breakdown and Responsibility Matrix}
+\begin{center}
+\begin{tabular}{|c|p{4.8cm}|c|}
+\hline
+\textbf{Member} & \textbf{Core Module / Primary Deliverable} & \textbf{Status} \\
+\hline
+M1 & Foundation, Tag Array RTL, Unit Testbench, Intro \& Lit Review & In Progress \\
+\hline
+M2 & Data Array RTL, Block Masking Logic, Unit Testbench & Pending \\
+\hline
+M3 & Cache Controller FSM, Hit/Miss Controller Logic & Pending \\
+\hline
+M4 & Backing Memory Model, System Testbench, Trace Driver & Pending \\
+\hline
+M5 & Trace Benchmarks, Hit Rate/AMAT Analysis, Video Demo & Pending \\
+\hline
+\end{tabular}
+\label{tab:contributions}
+\end{center}
+\end{table}
+
+\section{Conclusion and Future Work}
+% [Summary of Phase I progress and roadmap toward Phase II completion]
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
