@@ -112,7 +112,8 @@ module tb_smoke #(parameter MEM_LATENCY = 10);
     end
 
     initial begin
-        #(200 * (MEM_LATENCY + 1));
+        // Allow for CPU handshake cycles as well as backing-memory waits.
+        #(600 + 100 * MEM_LATENCY);
         $fatal(1, "Timed out waiting for a CPU response");
     end
 endmodule
