@@ -29,10 +29,10 @@
     \textit{Course: Modern Computer Architecture} \\
     Email: varunudata@gmail.com}
     \and
-    \IEEEauthorblockN{Team Member 3 (M3)}
+    \IEEEauthorblockN{Amogha Raj Sandur (M3)}
     \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
     \textit{Course: Modern Computer Architecture} \\
-    Email: member3@example.edu}
+    Email: amogharaj.sandur@yahoo.com}
     \and
     \IEEEauthorblockN{Team Member 4 (M4)}
     \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
@@ -262,13 +262,25 @@ The backing memory model (\texttt{rtl/main\_memory.v}) simulates a 256~KB word-a
 
 \section{Prototype Progress and Verification}
 \subsection{Simulation Setup and Toolflow}
-% [Toolchain: Icarus Verilog 13.0, GTKWave, Makefile/script flow]
+Hardware verification is conducted using Icarus Verilog 13.0 (\texttt{iverilog}) as the primary simulation engine, with GTKWave for interactive waveform inspection and VCD trace debugging. The toolflow compiles synthesizable Verilog modules alongside self-checking behavioral testbenches utilizing IEEE 1364-2001/1800-2012 syntax.
 
 \subsection{Unit Verification of Subsystems}
-% [M1 Tag Array unit testing results, self-checking assertions, 271 checks passed]
+Each foundational subsystem is verified through dedicated self-checking testbenches:
+\begin{itemize}
+    \item \textbf{Tag Array Subsystem} (\texttt{tb/tb\_tag\_array.v}): Verified across 271 assertions, validating synchronous reset across all 256 lines, clean/dirty block allocations, asynchronous single-cycle hit comparison, selective \texttt{set\_dirty} assertion on write hits, and boundary line isolation ($0, 1, 127, 254, 255$).
+    \item \textbf{Data Array Subsystem} (\texttt{tb/tb\_data\_array.v}): Verified across 283 assertions, confirming 128-bit block refills, 32-bit sub-word read multiplexing, independent word write insertion without corrupting sibling words, and boundary addressing.
+    \item \textbf{Backing Memory Behavioral Model} (\texttt{tb/tb\_main\_memory.v}): Verified across 42 assertions, demonstrating deterministic \texttt{\$readmemh} initialization from \texttt{traces/mem\_init.hex}, accurate 10-cycle fixed access latency, 16-byte block alignment, and back-to-back write-back-to-allocate handshakes.
+\end{itemize}
 
-\subsection{Preliminary Simulation Results}
-% [Waveform analysis and timing verification]
+\subsection{Integrated Cache Subsystem Verification}
+The integrated top-level cache controller (\texttt{rtl/cache\_top.v}) is validated using \texttt{tb/tb\_smoke.v}. The testbench evaluates four comprehensive end-to-end operational scenarios:
+\begin{enumerate}
+    \item \textbf{Cold Read Miss and Subsequent Hit}: The initial read to an un-cached address causes a miss, triggering a 10-cycle memory allocate handshake. Subsequent read to the same block returns data in a single clock cycle with \texttt{ready} asserted.
+    \item \textbf{Dirty Write-Back on Eviction}: Modifying a cached word asserts the dirty flag. When a conflicting address induces an eviction, the controller automatically enters \texttt{WRITE\_BACK}, updates backing memory with the modified 128-bit block, and then completes the allocation.
+    \item \textbf{Write-Allocate and Data Coherence}: Write misses successfully fetch the target block from memory, update the requested 32-bit word, mark the line dirty, and preserve coherence upon subsequent readback.
+    \item \textbf{Controller Handshake and Timing Integrity}: Confirms that \texttt{ready} pulses cleanly for single-cycle CPU handshake timing without deadlock or race conditions.
+\end{enumerate}
+All verification suites execute with 100\% passing status, and execution logs are archived in the \texttt{results/} directory.
 
 \section{Individual Contributions}
 \begin{table}[htbp]
@@ -282,7 +294,7 @@ M1 & Foundation, Tag Array RTL, Unit Testbench, Intro \& Lit Review & Completed 
 \hline
 M2 & Data Array, Main Memory Model, Unit Testbenches, Write Policies \& Datapath Sections & Completed \\
 \hline
-M3 & Cache Controller FSM, Hit/Miss Controller Logic & Pending \\
+M3 & Cache Controller FSM, Top Integration, Smoke Testbench, FSM \& Transition Sections & Completed \\
 \hline
 M4 & Backing Memory Model, System Testbench, Trace Driver & Pending \\
 \hline

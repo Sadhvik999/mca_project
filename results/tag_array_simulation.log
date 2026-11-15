@@ -1,0 +1,24 @@
+VCD info: dumpfile tb/tag_array.vcd opened for output.
+----------------------------------------------------------------
+Starting Self-Checking Testbench: tag_array (256 entries)
+----------------------------------------------------------------
+[STAGE 1] Testing synchronous reset across all 256 entries...
+[STAGE 1] PASS: All 256 lines successfully initialized to V=0, D=0, Tag=0x00000.
+
+[STAGE 2] Testing write allocation (clean line insertion)...
+
+[STAGE 3] Testing write allocation (dirty line insertion)...
+
+[STAGE 4] Testing selective set_dirty on clean line (8'h34)...
+
+[STAGE 5] Testing addressing isolation across boundary entries...
+
+[STAGE 6] Testing eviction overwrite at line 8'h00...
+
+[STAGE 7] Testing synchronous re-reset functionality...
+----------------------------------------------------------------
+Tests Executed: 271 assertions checked
+>>> TEST STATUS: PASS <<<
+All tag_array operations verified successfully!
+----------------------------------------------------------------
+tb/tb_tag_array.v:256: $finish called at 461000 (1ps)

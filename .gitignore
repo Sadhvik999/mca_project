@@ -17,6 +17,7 @@ __pycache__/
 *.fls
 *.lof
 *.log
+!results/*.log
 *.lot
 *.out
 *.run.xml

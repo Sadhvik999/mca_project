@@ -1,0 +1,6 @@
+VCD info: dumpfile build/smoke.vcd opened for output.
+PASS: cold read miss and same-address hit
+PASS: dirty write-back, clean replacement, and preserved neighboring word
+PASS: write allocate, dirty eviction, and memory readback
+PASS: cache_top smoke test (MEM_LATENCY=10)
+tb/tb_smoke.v:111: $finish called at 1290000 (1ps)
