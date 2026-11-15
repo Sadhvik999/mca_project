@@ -108,8 +108,12 @@ Handling memory write operations efficiently is central to cache microarchitectu
 
 For a blocking cache connected to a backing memory with \texttt{MEM\_LATENCY} $= 10$ cycles over a 128-bit block-wide interface, combining \textbf{write-back} with \textbf{write-allocate} minimizes redundant bus transactions. Each cache line therefore carries a \texttt{dirty} bit alongside its \texttt{valid} bit and tag, requiring the controller to perform a 128-bit \texttt{WRITE\_BACK} prior to \texttt{ALLOCATE} whenever a dirty block is evicted \cite{hennessy2019computer}.
 
-\subsection{Finite State Machine Architectures for Cache Controllers (M3)}
-% [M3 Section Placeholder: Multi-state controller sequencing, Mealy/Moore outputs, bus handshakes]
+\subsection{Miss classification and improving direct-mapped caches}
+A compulsory miss occurs on the first reference to a block. To classify later misses, compare the direct-mapped cache with a fully associative cache of the same capacity and block size, using least-recently-used replacement in the reference cache. A capacity miss also occurs in the reference cache because its limited storage forced the block out. A conflict miss is a miss in the direct-mapped cache that would hit in the reference cache \cite{patterson2020computer}.
+
+A 4~KB direct-mapped cache with 16-byte blocks places addresses \texttt{0x00000028} and \texttt{0x00001028} at the same index. The first access to each block is compulsory. Repeated alternation then causes conflict misses because the two blocks replace each other even though the rest of the cache has room. Increasing associativity allows both blocks to occupy the same set, at the cost of comparing more tags on each lookup \cite{hill1988case}.
+
+Jouppi proposed a small, fully associative victim cache that holds recently evicted lines. When a primary-cache miss hits in the victim cache, the requested block and the line it displaces can swap, avoiding a fetch from backing memory. This approach targets mapping conflicts while preserving the direct-mapped primary lookup \cite{jouppi1990improving}. The Phase~I prototype uses the direct-mapped baseline to expose the cost of those conflicts.
 
 \subsection{Simulation-Based Hardware Verification Frameworks (M4)}
 % [M4 Section Placeholder: Testbench architecture, self-checking scoreboarding, trace injection]
@@ -149,6 +153,43 @@ Byte Offset & \texttt{[1:0]} & 2 & Sub-word alignment \\
 
 For example, address \texttt{0x00012348} splits into Tag \texttt{0x00012}, Index \texttt{0x34} (line~52), Block Offset \texttt{2'b10} (word~2, block bits \texttt{[95:64]}), and Byte Offset \texttt{2'b00}, mapping to the 16-byte aligned memory block starting at \texttt{\{addr[31:4], 4'b0000\} = 0x00012340}.
 
+\begin{figure}[htbp]
+\centering
+\setlength{\unitlength}{0.72pt}
+\scriptsize
+\begin{picture}(320,139)
+    \put(111,114){\framebox(98,18){CPU interface}}
+    \put(103,78){\framebox(114,18){Cache controller}}
+    \put(6,43){\framebox(100,18){Tag array}}
+    \put(214,43){\framebox(100,18){Data array}}
+    \put(103,8){\framebox(114,18){Main memory model}}
+    \put(160,109){\vector(0,1){5}}
+    \put(160,101){\line(0,1){8}}
+    \put(160,101){\vector(0,-1){5}}
+    \put(170,105){\makebox(0,0)[l]{Request / response}}
+    \put(56,87){\line(1,0){41}}
+    \put(97,87){\vector(1,0){6}}
+    \put(56,87){\vector(0,-1){26}}
+    \put(223,87){\line(1,0){41}}
+    \put(223,87){\vector(-1,0){6}}
+    \put(264,87){\vector(0,-1){26}}
+    \put(52,72){\makebox(0,0)[r]{Metadata}}
+    \put(268,72){\makebox(0,0)[l]{Word I/O}}
+    \put(160,32){\line(0,1){40}}
+    \put(160,72){\vector(0,1){6}}
+    \put(160,32){\vector(0,-1){6}}
+    \put(167,48){\makebox(0,0)[l]{Control}}
+    \put(264,17){\line(0,1){20}}
+    \put(264,37){\vector(0,1){6}}
+    \put(264,17){\vector(-1,0){47}}
+    \put(261,5){\makebox(0,0){128-bit block I/O}}
+\end{picture}
+\caption{Block diagram of the integrated cache subsystem.}
+\label{fig:cache_m3_architecture}
+\end{figure}
+
+Figure~\ref{fig:cache_m3_architecture} shows the four modules instantiated by \texttt{cache\_top}. The controller latches one CPU request, supplies its index to both arrays, and uses the stored metadata to determine whether the selected line can serve that request. The data array exchanges a 32-bit word with the controller and a full 128-bit block with the memory model. A store updates one word, while a refill writes all four words. The memory model reports each completed block transfer to the controller through \texttt{mem\_ready}.
+
 \subsection{Tag Array Subsystem Design}
 The Tag Array (\texttt{rtl/tag\_array.v}) stores per-line metadata across $256$ entries: a 20-bit tag (\texttt{tag\_mem}), a 1-bit validity flag (\texttt{valid\_mem}), and a 1-bit modification flag (\texttt{dirty\_mem}). Asynchronous continuous reads expose \texttt{tag\_out}, \texttt{valid\_out}, and \texttt{dirty\_out} in the same cycle as \texttt{index} presentation, enabling single-cycle hit evaluation (\texttt{hit = valid\_out \&\& (tag\_out == addr[31:12])}) during \texttt{COMPARE\_TAG}. Synchronous active-high \texttt{rst} clears all 256 valid, dirty, and tag entries. On miss allocation, \texttt{write\_en} loads \texttt{tag\_in}, \texttt{valid\_in}, and \texttt{dirty\_in} on the rising clock edge; on CPU write hits, \texttt{set\_dirty} marks the indexed line dirty without overwriting its tag or valid state.
 
@@ -156,7 +197,65 @@ The Tag Array (\texttt{rtl/tag\_array.v}) stores per-line metadata across $256$ 
 The Data Array (\texttt{rtl/data\_array.v}) implements the 4~KB cache payload as a $256 \times 128$-bit synchronous memory array (\texttt{data\_mem}), holding four 32-bit words per line in little-endian word order: Word~0 in \texttt{[31:0]}, Word~1 in \texttt{[63:32]}, Word~2 in \texttt{[95:64]}, and Word~3 in \texttt{[127:96]}. On the read datapath, combinational indexing drives \texttt{block\_out[127:0]} directly for 128-bit dirty evictions while a 4:1 multiplexer controlled by \texttt{word\_offset} (\texttt{addr[3:2]}) routes the target 32-bit word to \texttt{word\_out[31:0]}. On the write datapath, asserting \texttt{write\_block\_en} refills an entire 128-bit line from \texttt{block\_in} during \texttt{ALLOCATE} (taking precedence if both write enables are high), whereas asserting \texttt{write\_word\_en} updates only the 32-bit word selected by \texttt{word\_offset} with \texttt{word\_in} while preserving the remaining three words in the block. Synchronous \texttt{rst} clears all 256 lines to zero.
 
 \subsection{Finite State Machine Control Logic}
-% [FSM states: IDLE, COMPARE_TAG, WRITE_BACK, ALLOCATE, state transition conditions]
+Figure~\ref{fig:cache_m3_fsm} and Table~\ref{tab:cache_m3_fsm} show how the controller serves one outstanding CPU request. In \texttt{IDLE}, it latches \texttt{addr}, \texttt{we}, and \texttt{wdata}. The latched address selects the same index throughout the request. In \texttt{COMPARE\_TAG}, a hit requires a valid line and an equal tag. On a read hit the array supplies the selected word. On a write hit the array writes the selected word and sets the dirty bit at the clock edge that samples \texttt{ready}.
+
+\begin{figure}[htbp]
+\centering
+\setlength{\unitlength}{0.72pt}
+\scriptsize
+\begin{picture}(320,156)
+    \put(110,132){\framebox(100,20){\texttt{IDLE}}}
+    \put(110,82){\framebox(100,20){\texttt{COMPARE\_TAG}}}
+    \put(8,22){\framebox(100,20){\texttt{ALLOCATE}}}
+    \put(212,22){\framebox(100,20){\texttt{WRITE\_BACK}}}
+    \put(143,132){\vector(0,-1){30}}
+    \put(178,102){\vector(0,1){30}}
+    \put(135,117){\makebox(0,0)[r]{Latch request}}
+    \put(186,117){\makebox(0,0)[l]{Complete on hit}}
+    \put(122,82){\vector(-2,-1){80}}
+    \put(86,42){\vector(2,1){80}}
+    \put(192,82){\vector(2,-1){80}}
+    \put(212,32){\vector(-1,0){104}}
+    \put(88,70){\makebox(0,0)[r]{Clean / invalid miss}}
+    \put(127,50){\makebox(0,0)[l]{Refill done}}
+    \put(235,67){\makebox(0,0)[l]{Dirty miss}}
+    \put(160,21){\makebox(0,0){Write-back done}}
+\end{picture}
+\caption{Cache controller transitions. Reset enters \texttt{IDLE}. The transition table includes the wait conditions.}
+\label{fig:cache_m3_fsm}
+\end{figure}
+
+\begin{table}[htbp]
+\caption{Cache controller transitions and actions}
+\label{tab:cache_m3_fsm}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{@{}p{0.26\columnwidth}
+    >{\raggedright\arraybackslash}p{0.18\columnwidth}
+    p{0.26\columnwidth}
+    >{\raggedright\arraybackslash}p{0.23\columnwidth}@{}}
+\toprule
+State & Condition & Next state & Actions / outputs \\
+\midrule
+Any & Reset & \texttt{IDLE} & Clear controller and cache metadata. \\
+\texttt{IDLE} & No request & \texttt{IDLE} & Wait. \\
+\texttt{IDLE} & Request & \texttt{COMPARE\_TAG} & Latch CPU operands. \\
+\texttt{COMPARE\_TAG} & Read hit & \texttt{IDLE} & Return word and assert ready. \\
+\texttt{COMPARE\_TAG} & Write hit & \texttt{IDLE} & Write word, mark dirty, assert ready. \\
+\texttt{COMPARE\_TAG} & Miss, dirty victim & \texttt{WRITE\_BACK} & Signal miss and dirty eviction. \\
+\texttt{COMPARE\_TAG} & Miss, clean or invalid victim & \texttt{ALLOCATE} & Signal miss. \\
+\texttt{WRITE\_BACK} & Memory busy & \texttt{WRITE\_BACK} & Hold victim write request. \\
+\texttt{WRITE\_BACK} & Memory ready & \texttt{ALLOCATE} & Advance to refill. \\
+\texttt{ALLOCATE} & Memory busy & \texttt{ALLOCATE} & Hold requested block read. \\
+\texttt{ALLOCATE} & Memory ready & \texttt{COMPARE\_TAG} & Fill data, install valid clean tag, retry. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A miss with a valid, dirty victim first writes the full block to the address formed from the stored tag, index, and four zero low bits. The refill uses the requested tag with the same index and zero offset. When \texttt{mem\_ready} is high in \texttt{ALLOCATE}, both arrays capture the refill on the same edge. The replay then completes through the normal hit path. On a write miss this sequence preserves the other three words from memory and marks the updated line dirty.
+
+The controller is Mealy because \texttt{ready} depends on the tag comparison in \texttt{COMPARE\_TAG}, and the array fill enables depend on \texttt{mem\_ready} in \texttt{ALLOCATE}. The memory request and transfer direction depend on state. The debug signals report the initial lookup once per request, so a refill replay completes without adding a hit to the trace statistics.
 
 \subsection{Main Memory Interfacing and Latency Handshake}
 The backing memory model (\texttt{rtl/main\_memory.v}) simulates a 256~KB word-addressed main memory (\texttt{MEM\_SIZE\_WORDS} $= 65536$) preloaded at simulation startup via \texttt{\$readmemh} from \texttt{traces/mem\_init.hex} (with each word initialized deterministically to its word address). All cache-to-memory transactions transfer an aligned 16-byte block (\texttt{BLOCK\_SIZE} $= 16$, 128~bits), ignoring \texttt{mem\_addr[3:0]} so any unaligned address resolves to its enclosing aligned block \texttt{\{mem\_addr[17:4], 2'b00\}}. Internally, a three-state handshake controller (\texttt{S\_IDLE}, \texttt{S\_WAIT}, \texttt{S\_DONE}) latches \texttt{mem\_addr}, \texttt{mem\_we}, and \texttt{mem\_wdata} when \texttt{mem\_req} asserts, counts \texttt{MEM\_LATENCY} $= 10$ clock cycles, executes the 128-bit block write or read, and pulses \texttt{mem\_ready} for exactly one clock cycle. Because \texttt{S\_DONE} ignores trailing \texttt{mem\_req} assertions on the completion cycle, a Moore cache controller can transition directly from \texttt{WRITE\_BACK} to \texttt{ALLOCATE} without spurious re-triggering, and synchronous \texttt{rst} resets only the controller FSM while preserving preloaded memory contents.

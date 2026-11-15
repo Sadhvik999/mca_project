@@ -33,7 +33,7 @@ This repository encompasses **Phase I** deliverables:
 | **Write Policy** | Write-Back + Write-Allocate | Writes update cache; dirty line written on eviction |
 | **Concurrency Mode** | Blocking | Single outstanding request serviced at a time |
 | **Memory Latency** | `MEM_LATENCY = 10` cycles | Block-wide 128-bit memory transfer latency |
-| **FSM Controller States**| `IDLE`, `COMPARE_TAG`, `WRITE_BACK`, `ALLOCATE` | 4-state Mealy/Moore operational FSM |
+| **FSM Controller States**| `IDLE`, `COMPARE_TAG`, `WRITE_BACK`, `ALLOCATE` | 4-state Mealy FSM |
 
 ### CPU & Memory Interface Summary
 
@@ -48,7 +48,7 @@ This repository encompasses **Phase I** deliverables:
 - **Backing Memory Interface**:
   - `mem_req` (Output): Initiates block transfer with backing memory.
   - `mem_we` (Output): High for block writeback, Low for block allocation read.
-  - `mem_addr` (Output, 32-bit): Aligned block address (`addr[31:4], 4'b0000`).
+  - `mem_addr` (Output, 32-bit): Block-aligned address formed with the victim tag on write-back and the requested tag on refill.
   - `mem_wdata` (Output, 128-bit): 16-byte block written back to memory.
   - `mem_rdata` (Input, 128-bit): 16-byte block fetched from memory.
   - `mem_ready` (Input): High when backing memory transfer completes (after 10 cycles).
@@ -63,7 +63,7 @@ The project is developed sequentially by a team of 5 members adhering strictly t
 |---|---|---|---|---|
 | **M1** | Stage 1 | Repository foundation, directory layout, `.gitignore`, IEEEtran report skeleton & references, address split spec, block diagram, `tag_array.v` RTL, self-checking `tb_tag_array.v`, Abstract & Introduction & Lit Review (Locality/Orgs). | `feature/foundation` | [x] Completed |
 | **M2** | Stage 2 | Data storage array (`data_array.v`), read/write word masking logic, `tb_data_array.v`, top-level cache structure integration. | `feature/data-array` | [ ] Pending |
-| **M3** | Stage 3 | Cache controller FSM (`cache_controller.v`), hit/miss evaluation, write-back and allocate sequence control. | `feature/controller-fsm` | [ ] Pending |
+| **M3** | Stage 3 | Cache controller FSM (`cache_controller.v`), hit/miss evaluation, write-back and allocate sequence control. | `feature/fsm-controller` | [x] Completed |
 | **M4** | Stage 4 | Backing memory behavioral model (`memory_model.v`, 10-cycle latency), system testbench (`tb_cache_top.v`), synthetic memory trace driver. | `feature/system-tb` | [ ] Pending |
 | **M5** | Stage 5 | Performance benchmarks & hit rate / AMAT analysis, GTKWave waveform generation, video demonstration script, final report synthesis. | `feature/eval-final` | [ ] Pending |
 
@@ -118,12 +118,21 @@ vvp tb/tb_tag_array.vvp
 gtkwave tb/tag_array.vcd
 ```
 
-#### 2. Full Cache Top Simulation (Available after M4/M5 stages)
+#### 2. Integrated Cache Smoke Test
+
+Run from the repository root so the memory model can load `traces/mem_init.hex`.
+
 ```bash
-# Compilation command placeholder
-# iverilog -g2012 -o tb/tb_cache_top.vvp rtl/*.v tb/tb_cache_top.v
-# vvp tb/tb_cache_top.vvp
+mkdir -p build
+iverilog -g2012 -Wall -s tb_smoke -o build/tb_smoke.vvp rtl/*.v tb/tb_smoke.v
+vvp build/tb_smoke.vvp +vcd
+# Optional waveform viewer
+gtkwave build/smoke.vcd
 ```
+
+The smoke test checks a cold read miss, a repeated hit, a write hit, write allocation,
+and dirty write-back. See the [FSM and CPU handshake](docs/diagrams/fsm_diagram.md)
+for the debug outputs and the edge on which to sample `ready`.
 
 ### Compiling the Technical Report
 ```bash
@@ -151,7 +160,7 @@ pdflatex main.tex
 - [x] IEEEtran report skeleton initialized with verified classical citations.
 - [x] Abstract, Introduction, and Literature Review Section II-A written.
 - [ ] Data Array RTL and testbench (`M2`).
-- [ ] 4-state Cache Controller FSM implementation (`M3`).
+- [x] 4-state Cache Controller FSM and integrated smoke test (`M3`).
 - [ ] Behavioral Main Memory Model with 10-cycle latency (`M4`).
 - [ ] System-level trace verification & hit rate analysis (`M4`/`M5`).
 - [ ] Final 5-minute video demonstration script and presentation (`M5`).
