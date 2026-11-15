@@ -34,10 +34,10 @@
     \textit{Course: Modern Computer Architecture} \\
     Email: amogharaj.sandur@yahoo.com}
     \and
-    \IEEEauthorblockN{Team Member 4 (M4)}
+    \IEEEauthorblockN{Yachna Khanna (M4)}
     \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
     \textit{Course: Modern Computer Architecture} \\
-    Email: member4@example.edu}
+    Email: yachna.2024@nst.rishihood.edu.in}
     \and
     \IEEEauthorblockN{Team Member 5 (M5)}
     \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
@@ -115,8 +115,15 @@ A 4~KB direct-mapped cache with 16-byte blocks places addresses \texttt{0x000000
 
 Jouppi proposed a small, fully associative victim cache that holds recently evicted lines. When a primary-cache miss hits in the victim cache, the requested block and the line it displaces can swap, avoiding a fetch from backing memory. This approach targets mapping conflicts while preserving the direct-mapped primary lookup \cite{jouppi1990improving}. The Phase~I prototype uses the direct-mapped baseline to expose the cost of those conflicts.
 
-\subsection{Simulation-Based Hardware Verification Frameworks (M4)}
-% [M4 Section Placeholder: Testbench architecture, self-checking scoreboarding, trace injection]
+\subsection{Hardware Verification Methodology and Golden Reference Models (M4)}
+Functional verification of hardware memory controllers presents unique challenges due to complex multi-cycle handshakes, state-dependent side effects, and asynchronous bus interactions \cite{hennessy2019computer, patterson2020computer}. In modern digital design flows, simulation-based verification remains the principal methodology for validating RTL implementations against microarchitectural specifications prior to physical synthesis \cite{patterson2020computer}.
+
+Effective verification of cache subsystems necessitates a dual-layer strategy combining directed stress testing with reference model checking:
+\begin{enumerate}
+    \item \textbf{Self-Checking Testbenches}: Traditional manual inspection of waveform traces is inherently error-prone and unscalable. Self-checking testbenches automate validation by encapsulating stimulus generation, response monitoring, and invariant assertion checking directly in Verilog tasks \cite{patterson2020computer}. Bus driver tasks synchronize with clock edges, enforce protocol timing, and incorporate timeout watchdogs to detect protocol deadlocks or stalled handshakes.
+    \item \textbf{Golden Reference Models}: To verify functional correctness across sequence-dependent memory operations, the verification environment couples the Device Under Test (DUT) to an independent, high-level reference oracle (the ``golden model'') \cite{hennessy2019computer}. In cache verification, this oracle is implemented as an un-cached, direct-storage software memory array. While the DUT cache handles tagging, indexing, sub-word multiplexing, write-back buffering, and multi-cycle memory latency, the golden reference array updates synchronously on every committed CPU write. On every load transaction, the data returned by the DUT is evaluated concurrently against the golden array. Any divergence immediately exposes data corruption, stale reads, or incorrect replacement logic.
+    \item \textbf{Corner-Case and Directed Stimulus}: As classified by Smith \cite{smith1982cache}, cache operations span distinct operational regimes: cold misses, cache hits, sub-word writes, write-allocate refills, clean evictions, and dirty write-backs. Targeted directed sequences systematically exercise boundary lines, index aliasing, and memory latency transitions that random stimulus might fail to trigger.
+\end{enumerate}
 
 \subsection{Cache Performance Metrics and Latency Analysis (M5)}
 % [M5 Section Placeholder: AMAT formulation, hit/miss trade-offs, CPI impact]
@@ -260,6 +267,14 @@ The controller is Mealy because \texttt{ready} depends on the tag comparison in 
 \subsection{Main Memory Interfacing and Latency Handshake}
 The backing memory model (\texttt{rtl/main\_memory.v}) simulates a 256~KB word-addressed main memory (\texttt{MEM\_SIZE\_WORDS} $= 65536$) preloaded at simulation startup via \texttt{\$readmemh} from \texttt{traces/mem\_init.hex} (with each word initialized deterministically to its word address). All cache-to-memory transactions transfer an aligned 16-byte block (\texttt{BLOCK\_SIZE} $= 16$, 128~bits), ignoring \texttt{mem\_addr[3:0]} so any unaligned address resolves to its enclosing aligned block \texttt{\{mem\_addr[17:4], 2'b00\}}. Internally, a three-state handshake controller (\texttt{S\_IDLE}, \texttt{S\_WAIT}, \texttt{S\_DONE}) latches \texttt{mem\_addr}, \texttt{mem\_we}, and \texttt{mem\_wdata} when \texttt{mem\_req} asserts, counts \texttt{MEM\_LATENCY} $= 10$ clock cycles, executes the 128-bit block write or read, and pulses \texttt{mem\_ready} for exactly one clock cycle. Because \texttt{S\_DONE} ignores trailing \texttt{mem\_req} assertions on the completion cycle, a Moore cache controller can transition directly from \texttt{WRITE\_BACK} to \texttt{ALLOCATE} without spurious re-triggering, and synchronous \texttt{rst} resets only the controller FSM while preserving preloaded memory contents.
 
+\subsection{Verification Architecture and Test Plan Design (M4)}
+To guarantee functional compliance, we construct an automated, self-checking verification environment in \texttt{tb/tb\_cache.v} and \texttt{tb/tb\_directed.v}, structured according to the test plan in \texttt{docs/test\_plan.md}. The verification infrastructure is organized around three design pillars:
+\begin{enumerate}
+    \item \textbf{Synchronous Bus Driver Tasks}: Reusable Verilog tasks (\texttt{cpu\_read} and \texttt{cpu\_write}) emulate processor load and store transactions. The tasks drive \texttt{req}, \texttt{we}, \texttt{addr}, and \texttt{wdata} on negative clock edges and sample the cache's Mealy \texttt{ready} strobe on positive edges, ensuring race-free handshakes.
+    \item \textbf{Protocol Timeout Watchdogs}: Each bus transaction task includes a loop counter that trips if the cache controller fails to assert \texttt{ready} within $250$ clock cycles, preventing simulation deadlocks and pinpointing stalled states.
+    \item \textbf{Golden Reference Model}: A $65536 \times 32$-bit software array (\texttt{golden\_mem}) preloaded with \texttt{traces/mem\_init.hex} provides an independent reference oracle. Every write transaction updates \texttt{golden\_mem[addr[17:2]]}, and every read transaction compares \texttt{rdata} against the oracle to immediately detect stale reads, eviction corruptions, or aliasing bugs.
+\end{enumerate}
+
 \section{Prototype Progress and Verification}
 \subsection{Simulation Setup and Toolflow}
 Hardware verification is conducted using Icarus Verilog 13.0 (\texttt{iverilog}) as the primary simulation engine, with GTKWave for interactive waveform inspection and VCD trace debugging. The toolflow compiles synthesizable Verilog modules alongside self-checking behavioral testbenches utilizing IEEE 1364-2001/1800-2012 syntax.
@@ -282,6 +297,56 @@ The integrated top-level cache controller (\texttt{rtl/cache\_top.v}) is validat
 \end{enumerate}
 All verification suites execute with 100\% passing status, and execution logs are archived in the \texttt{results/} directory.
 
+\subsection{Comprehensive Directed Verification Suite (M4)}
+To rigorously test the controller across all microarchitectural edge cases, we implemented a dedicated directed verification testbench (\texttt{tb/tb\_directed.v}) executing eight distinct functional scenarios:
+\begin{enumerate}
+    \item \textbf{TC-01 (Cold Read Miss)}: Accesses address \texttt{0x00000028} (Index \texttt{0x02}, Word~2) in an uninitialized cache. Controller transitions $\texttt{IDLE} \rightarrow \texttt{COMPARE\_TAG} \rightarrow \texttt{ALLOCATE}$, requests the 128-bit block \texttt{0x00000020} from backing memory, waits $10$ cycles, captures the line, and returns \texttt{rdata = 0x0000000a}.
+    \item \textbf{TC-02 (Read Hit)}: Re-reads address \texttt{0x00000028}. Because the line is valid and tags match, the controller asserts \texttt{hit = 1} and \texttt{ready = 1} within a single clock cycle of \texttt{COMPARE\_TAG} with zero external memory bus transactions.
+    \item \textbf{TC-03 (Write Hit \& Dirty Bit Assertion)}: Writes \texttt{0xDEADBEEF} to \texttt{0x00000028}. Evaluates as a hit in \texttt{COMPARE\_TAG}, updates Word~2 in the data array, asserts \texttt{set\_dirty = 1} in the tag array, and leaves backing memory untouched.
+    \item \textbf{TC-04 (Sub-Word Multiplexing \& Word Isolation)}: Addresses all four 32-bit words within block \texttt{0x00000020} (offsets \texttt{2'b00}, \texttt{2'b01}, \texttt{2'b10}, \texttt{2'b11}). Modifies Word~0 (\texttt{0x11110000}) and Word~3 (\texttt{0x33333333}). Subsequent readbacks confirm that all four words are independently accessible without corrupting neighboring entries.
+    \item \textbf{TC-05 (Write Miss \& Write-Allocate)}: Issues a store of \texttt{0xCAFEF00D} to unmapped address \texttt{0x00001044} (Index \texttt{0x04}, Word~1). The controller fetches the enclosing block \texttt{0x00001040} from backing memory, completes the store into Word~1, marks the line dirty, and preserves unmodified sibling words from memory.
+    \item \textbf{TC-06 (Conflict Eviction of a Clean Line)}: Fetches clean block \texttt{0x00000030} into Index \texttt{0x03}, then issues a conflicting read to \texttt{0x00002030} (same index, different tag). Because \texttt{dirty = 0}, the controller bypasses \texttt{WRITE\_BACK} and proceeds directly to \texttt{ALLOCATE}, loading the new block with zero writeback cycles.
+    \item \textbf{TC-07 (Conflict Eviction of a Dirty Line with Memory Coherence Readback)}: Line \texttt{0x02} (modified in TC-03 and TC-04) is evicted by accessing conflicting block \texttt{0x00001028}. The controller enters \texttt{WRITE\_BACK}, performs a 128-bit block write of \texttt{\{0x33333333, 0xDEADBEEF, 0x00000009, 0x11110000\}} to backing memory, and then enters \texttt{ALLOCATE}. Original block \texttt{0x00000020} is subsequently re-accessed and refilled from memory, proving that backing memory successfully retained the evicted dirty data.
+    \item \textbf{TC-08 (Index Boundary Verification)}: Validates operational consistency at the extreme boundaries of the address space: Line~0 (\texttt{0x00000000}) and Line~255 (\texttt{0x00000FFC}).
+\end{enumerate}
+
+\begin{table}[htbp]
+\caption{Directed Test Suite Execution Results (\texttt{tb\_directed.v})}
+\label{tab:directed_results}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|c|l|c|c|c|c|}
+\hline
+\textbf{ID} & \textbf{Scenario} & \textbf{Address} & \textbf{Type} & \textbf{Checks} & \textbf{Status} \\
+\hline
+TC-01 & Cold Read Miss & \texttt{0x00000028} & Read & 2 & PASS \\
+TC-02 & Read Hit & \texttt{0x00000028} & Read & 2 & PASS \\
+TC-03 & Write Hit (Dirty Set) & \texttt{0x00000028} & Write & 4 & PASS \\
+TC-04 & Sub-word Multiplexing & \texttt{0x00000020..2C} & R/W & 14 & PASS \\
+TC-05 & Write Miss (Write-Allocate) & \texttt{0x00001044} & Write & 6 & PASS \\
+TC-06 & Clean Line Eviction & \texttt{0x00002030} & Read & 8 & PASS \\
+TC-07 & Dirty Eviction \& Readback & \texttt{0x00001028, 0x0028} & Read & 16 & PASS \\
+TC-08 & Boundary Lines (0 \& 255) & \texttt{0x00000000, 0x0FFC} & R/W & 8 & PASS \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Total Assertion Checks Executed}} & \textbf{60} & \textbf{100\% PASS} \\
+\hline
+\end{tabular}
+\end{table}
+
+As summarized in Table~\ref{tab:directed_results}, all $60$ assertions passed with zero errors. The complete simulation transcript is preserved in \texttt{docs/waveforms/sim\_log.txt}.
+
+\subsection{Golden Reference Model Verification (M4)}
+In addition to directed unit checks, \texttt{tb/tb\_cache.v} validates the cache controller against a $65536$-entry software memory oracle (\texttt{golden\_mem}). During simulation, every write instruction updates the reference model in parallel with the cache. On each read instruction, the returned 32-bit data is verified against both the expected value and the reference model array. A suite of nine continuous memory transactions completed with zero discrepancies, demonstrating that cache data coherency is maintained across multiple allocations and writes.
+
+\subsection{Waveform Analysis and Critical Signal Observations (M4)}
+To enable visual inspection of signal timing, simulation waveforms were captured to \texttt{docs/waveforms/cache\_directed.vcd} and documented in \texttt{docs/waveforms/README.md}. Key behavioral observations include:
+\begin{itemize}
+    \item \textbf{Handshake Timing}: On a cache hit (TC-02), \texttt{ready} asserts combinationally in \texttt{COMPARE\_TAG} when \texttt{tag\_hit} evaluates true, completing in one cycle. On a cache miss (TC-01), \texttt{miss} pulses for exactly one cycle during the initial lookup and is suppressed during the subsequent refill replay via the \texttt{refilled} register.
+    \item \textbf{Memory Handshake Latency}: During \texttt{ALLOCATE} and \texttt{WRITE\_BACK}, the controller asserts \texttt{mem\_req} and maintains state until the memory model asserts \texttt{mem\_ready} exactly $10$ clock cycles later.
+    \item \textbf{Two-Phase Dirty Eviction}: In TC-07, \texttt{dirty\_evict} trips upon detecting a tag mismatch on a dirty line. The controller enters \texttt{WRITE\_BACK} ($10$ cycles with \texttt{mem\_we = 1}) before smoothly transitioning into \texttt{ALLOCATE} ($10$ cycles with \texttt{mem\_we = 0}), completely servicing the replacement in $22$ total clock cycles without bus contention.
+\end{itemize}
+
 \section{Individual Contributions}
 \begin{table}[htbp]
 \caption{Team Member Task Breakdown and Responsibility Matrix}
@@ -296,7 +361,7 @@ M2 & Data Array, Main Memory Model, Unit Testbenches, Write Policies \& Datapath
 \hline
 M3 & Cache Controller FSM, Top Integration, Smoke Testbench, FSM \& Transition Sections & Completed \\
 \hline
-M4 & Backing Memory Model, System Testbench, Trace Driver & Pending \\
+M4 & Verification Testbenches (\texttt{tb\_cache}, \texttt{tb\_directed}), Test Plan, Simulation Runner \& Waveform Analysis & Completed \\
 \hline
 M5 & Trace Benchmarks, Hit Rate/AMAT Analysis, Video Demo & Pending \\
 \hline
