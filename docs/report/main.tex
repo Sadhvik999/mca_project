@@ -24,10 +24,10 @@
     \textit{Course: Modern Computer Architecture} \\
     Email: musthyala.sadhvik2024@nst.rishihood.edu.in}
     \and
-    \IEEEauthorblockN{Team Member 2 (M2)}
+    \IEEEauthorblockN{Varun Udata (M2)}
     \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
     \textit{Course: Modern Computer Architecture} \\
-    Email: member2@example.edu}
+    Email: varunudata@gmail.com}
     \and
     \IEEEauthorblockN{Team Member 3 (M3)}
     \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
@@ -98,8 +98,15 @@ Architecturally, cache structures are categorized into three primary placement p
 
 To mitigate conflict misses inherent to direct-mapped caches without compromising their clock frequency advantages, Jouppi \cite{jouppi1990improving} introduced the victim cache architecture. By positioning a small, fully associative SRAM buffer between the direct-mapped L1 cache and the memory subsystem, evicted clean and dirty blocks are temporarily retained. On a miss in the direct-mapped cache, a secondary parallel lookup in the victim cache allows swift recovery of thrashing blocks, demonstrating that targeted microarchitectural augmentations can retain direct-mapped speed while approaching multi-way hit rates \cite{jouppi1990improving}.
 
-\subsection{Write Policies and Coherence Management (M2)}
-% [M2 Section Placeholder: Write-back vs write-through, allocation strategies, coherence overhead]
+\subsection{Write Policies and Main Memory Interfacing (M2)}
+Handling memory write operations efficiently is central to cache microarchitecture because writes introduce consistency obligations between on-chip SRAM and backing main memory \cite{smith1982cache, patterson2020computer}. Two orthogonal design choices govern write behavior: the \emph{write-hit policy} and the \emph{write-miss allocation policy} \cite{hennessy2019computer}.
+
+\begin{itemize}
+    \item \textbf{Write-Through vs.\ Write-Back (Write-Hit Policy)}: Under a \emph{write-through} policy, every processor store updates both the cache line and main memory synchronously. Although write-through simplifies hardware state tracking and keeps backing memory continuously up to date, every store consumes external memory bandwidth and risks stalling the CPU unless buffered by a write buffer \cite{patterson2020computer}. Conversely, a \emph{write-back} (copy-back) policy updates only the cache SRAM on a write hit and asserts a per-line \texttt{dirty} bit. Modified lines are transferred back to main memory only when evicted upon a conflicting miss. As characterized by Smith \cite{smith1982cache}, write-back coalesces multiple stores to words within the same block into a single block-wide memory write, dramatically lowering memory bus traffic when backing memory exhibits multi-cycle latency.
+    \item \textbf{Write-Allocate vs.\ No-Write-Allocate (Write-Miss Policy)}: Under \emph{write-allocate} (fetch-on-write), a write miss loads the missing block from main memory into the cache before writing the target word. Under \emph{no-write-allocate} (write-around), the store bypasses the cache and updates main memory directly \cite{hennessy2019computer}. Write-allocate pairs naturally with write-back because subsequent reads or writes to neighboring words in the newly fetched block become fast cache hits; conversely, no-write-allocate is typically coupled with write-through \cite{patterson2020computer}.
+\end{itemize}
+
+For a blocking cache connected to a backing memory with \texttt{MEM\_LATENCY} $= 10$ cycles over a 128-bit block-wide interface, combining \textbf{write-back} with \textbf{write-allocate} minimizes redundant bus transactions. Each cache line therefore carries a \texttt{dirty} bit alongside its \texttt{valid} bit and tag, requiring the controller to perform a 128-bit \texttt{WRITE\_BACK} prior to \texttt{ALLOCATE} whenever a dirty block is evicted \cite{hennessy2019computer}.
 
 \subsection{Finite State Machine Architectures for Cache Controllers (M3)}
 % [M3 Section Placeholder: Multi-state controller sequencing, Mealy/Moore outputs, bus handshakes]
@@ -112,19 +119,47 @@ To mitigate conflict misses inherent to direct-mapped caches without compromisin
 
 \section{Proposed Solution}
 \subsection{System Architecture and Address Decomposition}
-% [Subsystem Overview and Address Split: Tag[31:12], Index[11:4], Block[3:2], Byte[1:0]]
+The cache subsystem connects a 32-bit processor core (\texttt{req}, \texttt{we}, \texttt{addr}, \texttt{wdata}, \texttt{rdata}, \texttt{ready}) to a 128-bit block-wide backing memory interface (\texttt{mem\_req}, \texttt{mem\_we}, \texttt{mem\_addr}, \texttt{mem\_wdata}, \texttt{mem\_rdata}, \texttt{mem\_ready}). Given \texttt{CACHE\_SIZE} $= 4096$~bytes, \texttt{BLOCK\_SIZE} $= 16$~bytes (four 32-bit words), and direct-mapped placement ($1$ way per set), the cache holds $S = 4096 / 16 = 256$ lines. Accordingly, each 32-bit physical byte address (\texttt{ADDR\_WIDTH} $= 32$) is decomposed into four non-overlapping bit fields:
+\begin{itemize}
+    \item \textbf{Byte Offset} ($\texttt{addr[1:0]}$, $2$ bits): Addresses an individual byte inside a 4-byte word ($\log_2 4 = 2$).
+    \item \textbf{Block Offset} ($\texttt{addr[3:2]}$, $2$ bits): Selects one of the four 32-bit words inside a 16-byte cache line ($\log_2(16/4) = 2$).
+    \item \textbf{Index} ($\texttt{addr[11:4]}$, $8$ bits): Directly selects one of the $256$ cache lines in both the Tag Array and Data Array ($\log_2 256 = 8$).
+    \item \textbf{Tag} ($\texttt{addr[31:12]}$, $20$ bits): Uniquely identifies which physical memory block currently occupies the indexed line ($32 - (8 + 2 + 2) = 20$).
+\end{itemize}
+
+\begin{table}[htbp]
+\caption{32-Bit Physical Address Decomposition}
+\begin{center}
+\begin{tabular}{|l|c|c|p{3.1cm}|}
+\hline
+\textbf{Field} & \textbf{Bits} & \textbf{Width} & \textbf{Hardware Role} \\
+\hline
+Tag & \texttt{[31:12]} & 20 & Tag comparator / eviction address \\
+\hline
+Index & \texttt{[11:4]} & 8 & Selects line $0$--$255$ \\
+\hline
+Block Offset & \texttt{[3:2]} & 2 & 4:1 word mux / write lane \\
+\hline
+Byte Offset & \texttt{[1:0]} & 2 & Sub-word alignment \\
+\hline
+\end{tabular}
+\label{tab:addr_split}
+\end{center}
+\end{table}
+
+For example, address \texttt{0x00012348} splits into Tag \texttt{0x00012}, Index \texttt{0x34} (line~52), Block Offset \texttt{2'b10} (word~2, block bits \texttt{[95:64]}), and Byte Offset \texttt{2'b00}, mapping to the 16-byte aligned memory block starting at \texttt{\{addr[31:4], 4'b0000\} = 0x00012340}.
 
 \subsection{Tag Array Subsystem Design}
-% [Tag array specification, valid/dirty bit handling, single-cycle indexing]
+The Tag Array (\texttt{rtl/tag\_array.v}) stores per-line metadata across $256$ entries: a 20-bit tag (\texttt{tag\_mem}), a 1-bit validity flag (\texttt{valid\_mem}), and a 1-bit modification flag (\texttt{dirty\_mem}). Asynchronous continuous reads expose \texttt{tag\_out}, \texttt{valid\_out}, and \texttt{dirty\_out} in the same cycle as \texttt{index} presentation, enabling single-cycle hit evaluation (\texttt{hit = valid\_out \&\& (tag\_out == addr[31:12])}) during \texttt{COMPARE\_TAG}. Synchronous active-high \texttt{rst} clears all 256 valid, dirty, and tag entries. On miss allocation, \texttt{write\_en} loads \texttt{tag\_in}, \texttt{valid\_in}, and \texttt{dirty\_in} on the rising clock edge; on CPU write hits, \texttt{set\_dirty} marks the indexed line dirty without overwriting its tag or valid state.
 
 \subsection{Data Storage Array and Sub-word Multiplexing}
-% [Data array specification, 128-bit line storage, 32-bit word multiplexing]
+The Data Array (\texttt{rtl/data\_array.v}) implements the 4~KB cache payload as a $256 \times 128$-bit synchronous memory array (\texttt{data\_mem}), holding four 32-bit words per line in little-endian word order: Word~0 in \texttt{[31:0]}, Word~1 in \texttt{[63:32]}, Word~2 in \texttt{[95:64]}, and Word~3 in \texttt{[127:96]}. On the read datapath, combinational indexing drives \texttt{block\_out[127:0]} directly for 128-bit dirty evictions while a 4:1 multiplexer controlled by \texttt{word\_offset} (\texttt{addr[3:2]}) routes the target 32-bit word to \texttt{word\_out[31:0]}. On the write datapath, asserting \texttt{write\_block\_en} refills an entire 128-bit line from \texttt{block\_in} during \texttt{ALLOCATE} (taking precedence if both write enables are high), whereas asserting \texttt{write\_word\_en} updates only the 32-bit word selected by \texttt{word\_offset} with \texttt{word\_in} while preserving the remaining three words in the block. Synchronous \texttt{rst} clears all 256 lines to zero.
 
 \subsection{Finite State Machine Control Logic}
 % [FSM states: IDLE, COMPARE_TAG, WRITE_BACK, ALLOCATE, state transition conditions]
 
 \subsection{Main Memory Interfacing and Latency Handshake}
-% [10-cycle memory latency modeling, mem_req, mem_we, mem_ready handshakes]
+The backing memory model (\texttt{rtl/main\_memory.v}) simulates a 256~KB word-addressed main memory (\texttt{MEM\_SIZE\_WORDS} $= 65536$) preloaded at simulation startup via \texttt{\$readmemh} from \texttt{traces/mem\_init.hex} (with each word initialized deterministically to its word address). All cache-to-memory transactions transfer an aligned 16-byte block (\texttt{BLOCK\_SIZE} $= 16$, 128~bits), ignoring \texttt{mem\_addr[3:0]} so any unaligned address resolves to its enclosing aligned block \texttt{\{mem\_addr[17:4], 2'b00\}}. Internally, a three-state handshake controller (\texttt{S\_IDLE}, \texttt{S\_WAIT}, \texttt{S\_DONE}) latches \texttt{mem\_addr}, \texttt{mem\_we}, and \texttt{mem\_wdata} when \texttt{mem\_req} asserts, counts \texttt{MEM\_LATENCY} $= 10$ clock cycles, executes the 128-bit block write or read, and pulses \texttt{mem\_ready} for exactly one clock cycle. Because \texttt{S\_DONE} ignores trailing \texttt{mem\_req} assertions on the completion cycle, a Moore cache controller can transition directly from \texttt{WRITE\_BACK} to \texttt{ALLOCATE} without spurious re-triggering, and synchronous \texttt{rst} resets only the controller FSM while preserving preloaded memory contents.
 
 \section{Prototype Progress and Verification}
 \subsection{Simulation Setup and Toolflow}
@@ -146,7 +181,7 @@ To mitigate conflict misses inherent to direct-mapped caches without compromisin
 \hline
 M1 & Foundation, Tag Array RTL, Unit Testbench, Intro \& Lit Review & Completed \\
 \hline
-M2 & Data Array RTL, Block Masking Logic, Unit Testbench & Pending \\
+M2 & Data Array, Main Memory Model, Unit Testbenches, Write Policies \& Datapath Sections & Completed \\
 \hline
 M3 & Cache Controller FSM, Hit/Miss Controller Logic & Pending \\
 \hline
