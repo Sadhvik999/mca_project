@@ -216,7 +216,7 @@ Figure~\ref{fig:cache_m3_fsm} and Table~\ref{tab:cache_m3_fsm} show how the cont
     \put(86,42){\vector(2,1){80}}
     \put(192,82){\vector(2,-1){80}}
     \put(212,32){\vector(-1,0){104}}
-    \put(78,66){\makebox(0,0)[r]{Invalid or clean miss}}
+    \put(88,70){\makebox(0,0)[r]{Clean / invalid miss}}
     \put(127,50){\makebox(0,0)[l]{Refill done}}
     \put(235,67){\makebox(0,0)[l]{Dirty miss}}
     \put(160,21){\makebox(0,0){Write-back done}}
@@ -230,8 +230,11 @@ Figure~\ref{fig:cache_m3_fsm} and Table~\ref{tab:cache_m3_fsm} show how the cont
 \label{tab:cache_m3_fsm}
 \centering
 \scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}p{0.225\columnwidth}p{0.20\columnwidth}p{0.225\columnwidth}p{0.25\columnwidth}@{}}
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{@{}p{0.26\columnwidth}
+    >{\raggedright\arraybackslash}p{0.18\columnwidth}
+    p{0.26\columnwidth}
+    >{\raggedright\arraybackslash}p{0.23\columnwidth}@{}}
 \toprule
 State & Condition & Next state & Actions / outputs \\
 \midrule
@@ -240,8 +243,8 @@ Any & Reset & \texttt{IDLE} & Clear controller and cache metadata. \\
 \texttt{IDLE} & Request & \texttt{COMPARE\_TAG} & Latch CPU operands. \\
 \texttt{COMPARE\_TAG} & Read hit & \texttt{IDLE} & Return word and assert ready. \\
 \texttt{COMPARE\_TAG} & Write hit & \texttt{IDLE} & Write word, mark dirty, assert ready. \\
-\texttt{COMPARE\_TAG} & Dirty victim & \texttt{WRITE\_BACK} & Signal miss and dirty eviction. \\
-\texttt{COMPARE\_TAG} & Clean or invalid victim & \texttt{ALLOCATE} & Signal miss. \\
+\texttt{COMPARE\_TAG} & Miss, dirty victim & \texttt{WRITE\_BACK} & Signal miss and dirty eviction. \\
+\texttt{COMPARE\_TAG} & Miss, clean or invalid victim & \texttt{ALLOCATE} & Signal miss. \\
 \texttt{WRITE\_BACK} & Memory busy & \texttt{WRITE\_BACK} & Hold victim write request. \\
 \texttt{WRITE\_BACK} & Memory ready & \texttt{ALLOCATE} & Advance to refill. \\
 \texttt{ALLOCATE} & Memory busy & \texttt{ALLOCATE} & Hold requested block read. \\
