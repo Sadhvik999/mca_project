@@ -1,0 +1,76 @@
+===============================================================================
+ Compiling tb_directed with iverilog...
+===============================================================================
+===============================================================================
+ Running simulation: tb_directed...
+===============================================================================
+VCD info: dumpfile docs/waveforms/cache_directed.vcd opened for output.
+[VCD] Waveform dumping enabled to docs/waveforms/cache_directed.vcd
+===============================================================================
+   DIRECT-MAPPED CACHE CONTROLLER - DIRECTED VERIFICATION SUITE
+   Specifications: 4KB Cache, 16B Block, 256 Lines, Write-Back/Write-Allocate
+===============================================================================
+
+-------------------------------------------------------------------------------
+TC-01: Cold Read Miss (Index 0x02, Word 2, Addr: 0x00000028)
+       Expects: Initial miss, 10-cycle memory allocate, clean line installed.
+-------------------------------------------------------------------------------
+  [CHECK] TC-01 Passed: Cold miss allocated and serviced.
+
+-------------------------------------------------------------------------------
+TC-02: Read Hit (Index 0x02, Word 2, Addr: 0x00000028)
+       Expects: Immediate single-cycle hit, zero memory delay.
+-------------------------------------------------------------------------------
+  [CHECK] TC-02 Passed: Cache read hit completed in 1 cycle.
+
+-------------------------------------------------------------------------------
+TC-03: Write Hit (Dirty Set) (Addr: 0x00000028, Data: 0xDEADBEEF)
+       Expects: Cache hit, SRAM update, dirty bit set, no bus traffic.
+-------------------------------------------------------------------------------
+  [CHECK] TC-03 Passed: Write hit modified SRAM and asserted dirty.
+
+-------------------------------------------------------------------------------
+TC-04: Sub-word / Multi-word Access (Block base 0x00000020, Words 0, 1, 2, 3)
+       Expects: All 4 words independently accessible; writing one word
+                does not corrupt neighboring words.
+-------------------------------------------------------------------------------
+  [CHECK] TC-04 Passed: 4-word multiplexing and word isolation verified.
+
+-------------------------------------------------------------------------------
+TC-05: Write Miss (Write-Allocate) (Addr: 0x00001044, Data: 0xCAFEF00D)
+       Expects: Miss allocates block from memory, writes word 1, sets dirty.
+-------------------------------------------------------------------------------
+  [CHECK] TC-05 Passed: Write miss successfully write-allocated.
+
+-------------------------------------------------------------------------------
+TC-06: Conflict Eviction of Clean Line (Index 0x03, Addr1: 0x0030, Addr2: 0x2030)
+       Expects: Miss replaces clean line immediately without memory writeback.
+-------------------------------------------------------------------------------
+  [CHECK] TC-06 Passed: Clean conflict eviction bypassed write-back.
+
+-------------------------------------------------------------------------------
+TC-07: Conflict Eviction of Dirty Line with Write-Back & Coherence Read-Back
+       Target line index 0x02 is currently dirty (modified in TC-03/04).
+       Step 1: Access conflicting address 0x00001028 (Index 0x02, Tag 0x00001).
+               Expects: WRITE_BACK (128-bit store) -> ALLOCATE (128-bit fetch).
+       Step 2: Access 0x00000020 and 0x00000028 again to verify evicted data
+               was safely committed to backing memory.
+-------------------------------------------------------------------------------
+  [CHECK] TC-07 Passed: 128-bit dirty line writeback verified via memory read-back.
+
+-------------------------------------------------------------------------------
+TC-08: Boundary Lines Verification (Line 0: 0x00000000, Line 255: 0x00000FF0)
+       Expects: Extremities of index space function identically.
+-------------------------------------------------------------------------------
+  [CHECK] TC-08 Passed: Boundary line indices 0 and 255 verified.
+
+===============================================================================
+  VERIFICATION SUMMARY
+===============================================================================
+  >>> ALL TESTS PASSED <<<
+  Total successful assertion checks: 60
+  Failures: 0
+===============================================================================
+
+tb/tb_directed.v:412: $finish called at 2020000 (1ps)
+[SUCCESS] Simulation finished for tb_directed.
