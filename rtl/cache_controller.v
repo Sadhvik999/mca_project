@@ -22,6 +22,7 @@ module cache_controller #(
     output wire [TAG_WIDTH-1:0]       request_tag,
     input  wire [TAG_WIDTH-1:0]       stored_tag,
     input  wire                       valid,
+    input  wire                       dirty,
     output reg  [31:0]                write_word,
     input  wire [31:0]                read_word,
     output wire                       write_word_en,
@@ -35,11 +36,13 @@ module cache_controller #(
 
     output wire                  hit,
     output wire                  miss,
+    output wire                  dirty_evict,
     output reg  [1:0]            state
 );
 
     localparam [1:0] IDLE        = 2'd0;
     localparam [1:0] COMPARE_TAG = 2'd1;
+    localparam [1:0] WRITE_BACK = 2'd2;
     localparam [1:0] ALLOCATE    = 2'd3;
 
     reg [ADDR_WIDTH-1:0] request_addr;
@@ -52,6 +55,7 @@ module cache_controller #(
 
     // Mealy: ready and write enables depend on the current lookup and state.
     assign tag_hit = valid && (stored_tag == request_tag);
+    assign dirty_evict = miss && valid && dirty;
     assign ready = (state == COMPARE_TAG) && tag_hit;
     // Count the initial lookup once, even when a miss replays as a tag hit.
     assign hit = ready && !refilled;
@@ -59,9 +63,11 @@ module cache_controller #(
     assign rdata = read_word;
     assign write_word_en = ready && request_we;
 
-    assign mem_req = (state == ALLOCATE);
-    assign mem_we = 1'b0;
-    assign mem_addr = {request_tag, index, {OFFSET_BITS{1'b0}}};
+    assign mem_we = (state == WRITE_BACK);
+    assign mem_req = mem_we || (state == ALLOCATE);
+    // Keep the victim at this index until its block write completes.
+    assign mem_addr = {(mem_we ? stored_tag : request_tag),
+                       index, {OFFSET_BITS{1'b0}}};
     assign fill_line = (state == ALLOCATE) && mem_ready;
 
     always @(posedge clk) begin
@@ -81,7 +87,18 @@ module cache_controller #(
                     state <= COMPARE_TAG;
                 end
 
-                COMPARE_TAG: state <= tag_hit ? IDLE : ALLOCATE;
+                COMPARE_TAG: begin
+                    if (tag_hit)
+                        state <= IDLE;
+                    else if (dirty_evict)
+                        state <= WRITE_BACK;
+                    else
+                        state <= ALLOCATE;
+                end
+
+                // Main memory ignores mem_req on its completion edge.
+                WRITE_BACK: if (mem_ready)
+                    state <= ALLOCATE;
 
                 // The arrays capture the block and metadata on this same edge.
                 ALLOCATE: if (mem_ready) begin
