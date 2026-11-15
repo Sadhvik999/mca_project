@@ -30,7 +30,7 @@ flowchart TB
         direction TB
         FSM["Controller FSM\n(IDLE, COMPARE_TAG,\nWRITE_BACK, ALLOCATE)"]
         HIT_LOGIC["Hit / Miss Evaluation\n(hit = valid && tag_match)"]
-        DIRTY_LOGIC["Dirty / Eviction Logic\n(evict_dirty = !hit && dirty)"]
+        DIRTY_LOGIC["Dirty / Eviction Logic\n(evict_dirty = !hit && valid && dirty)"]
     end
 
     subgraph TAG_SUB["Tag Array Subsystem (256 Lines)"]
@@ -71,6 +71,8 @@ flowchart TB
     TAG_FIELD --> TAG_COMP
     TAG_MEM -->|"tag_out[19:0]"| TAG_COMP
     TAG_MEM -->|"valid_out"| HIT_LOGIC
+    TAG_MEM -->|"valid_out"| DIRTY_LOGIC
+    HIT_LOGIC -->|"hit / miss"| DIRTY_LOGIC
     TAG_MEM -->|"dirty_out"| DIRTY_LOGIC
     TAG_COMP -->|"tag_match"| HIT_LOGIC
 
@@ -110,7 +112,7 @@ flowchart TB
 
 1. **CPU Memory Request Phase**:
    - The CPU issues `req = 1`, `we` (0 for read, 1 for write), `addr[31:0]`, and if writing, `wdata[31:0]`.
-   - The address decoder extracts `Index[11:4]` to synchronously index line entry $0 \dots 255$.
+   - The controller latches the request. The decoder uses the latched `Index[11:4]` to select line entry $0 \dots 255$.
 
 2. **Tag Compare & Hit Determination (`COMPARE_TAG`)**:
    - `tag_array.v` yields `valid_out`, `dirty_out`, and `tag_out[19:0]` for line `index`.
@@ -131,5 +133,5 @@ flowchart TB
      - Asserts `mem_req = 1`, `mem_we = 0`.
      - When `mem_ready` asserts, memory returns 128-bit block `mem_rdata`.
      - `mem_rdata` is written to `data_array`.
-     - `tag_array` is updated: `valid = 1`, `dirty = (CPU write ? 1 : 0)`, `tag = addr[31:12]`.
-     - Transitions to `COMPARE_TAG` (or directly completes request to CPU) and returns to `IDLE`.
+     - `tag_array` installs the requested tag with `valid = 1` and `dirty = 0`.
+     - Returns to `COMPARE_TAG` to complete the latched read or write, then returns to `IDLE`. A replayed write updates the word and sets dirty.
