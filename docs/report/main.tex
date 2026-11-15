@@ -153,6 +153,43 @@ Byte Offset & \texttt{[1:0]} & 2 & Sub-word alignment \\
 
 For example, address \texttt{0x00012348} splits into Tag \texttt{0x00012}, Index \texttt{0x34} (line~52), Block Offset \texttt{2'b10} (word~2, block bits \texttt{[95:64]}), and Byte Offset \texttt{2'b00}, mapping to the 16-byte aligned memory block starting at \texttt{\{addr[31:4], 4'b0000\} = 0x00012340}.
 
+\begin{figure}[htbp]
+\centering
+\setlength{\unitlength}{0.72pt}
+\scriptsize
+\begin{picture}(320,139)
+    \put(111,114){\framebox(98,18){CPU interface}}
+    \put(103,78){\framebox(114,18){Cache controller}}
+    \put(6,43){\framebox(100,18){Tag array}}
+    \put(214,43){\framebox(100,18){Data array}}
+    \put(103,8){\framebox(114,18){Main memory model}}
+    \put(160,109){\vector(0,1){5}}
+    \put(160,101){\line(0,1){8}}
+    \put(160,101){\vector(0,-1){5}}
+    \put(170,105){\makebox(0,0)[l]{Request / response}}
+    \put(56,87){\line(1,0){41}}
+    \put(97,87){\vector(1,0){6}}
+    \put(56,87){\vector(0,-1){26}}
+    \put(223,87){\line(1,0){41}}
+    \put(223,87){\vector(-1,0){6}}
+    \put(264,87){\vector(0,-1){26}}
+    \put(52,72){\makebox(0,0)[r]{Metadata}}
+    \put(268,72){\makebox(0,0)[l]{Word I/O}}
+    \put(160,32){\line(0,1){40}}
+    \put(160,72){\vector(0,1){6}}
+    \put(160,32){\vector(0,-1){6}}
+    \put(167,48){\makebox(0,0)[l]{Memory control}}
+    \put(264,17){\line(0,1){20}}
+    \put(264,37){\vector(0,1){6}}
+    \put(264,17){\vector(-1,0){47}}
+    \put(261,5){\makebox(0,0){128-bit block I/O}}
+\end{picture}
+\caption{Block diagram of the integrated cache subsystem.}
+\label{fig:cache_m3_architecture}
+\end{figure}
+
+Figure~\ref{fig:cache_m3_architecture} shows the four modules instantiated by \texttt{cache\_top}. The controller latches one CPU request, supplies its index to both arrays, and uses the stored metadata to determine whether the selected line can serve that request. The data array exchanges a 32-bit word with the controller and a full 128-bit block with the memory model. A store updates one word, while a refill writes all four words. The memory model reports each completed block transfer to the controller through \texttt{mem\_ready}.
+
 \subsection{Tag Array Subsystem Design}
 The Tag Array (\texttt{rtl/tag\_array.v}) stores per-line metadata across $256$ entries: a 20-bit tag (\texttt{tag\_mem}), a 1-bit validity flag (\texttt{valid\_mem}), and a 1-bit modification flag (\texttt{dirty\_mem}). Asynchronous continuous reads expose \texttt{tag\_out}, \texttt{valid\_out}, and \texttt{dirty\_out} in the same cycle as \texttt{index} presentation, enabling single-cycle hit evaluation (\texttt{hit = valid\_out \&\& (tag\_out == addr[31:12])}) during \texttt{COMPARE\_TAG}. Synchronous active-high \texttt{rst} clears all 256 valid, dirty, and tag entries. On miss allocation, \texttt{write\_en} loads \texttt{tag\_in}, \texttt{valid\_in}, and \texttt{dirty\_in} on the rising clock edge; on CPU write hits, \texttt{set\_dirty} marks the indexed line dirty without overwriting its tag or valid state.
 
