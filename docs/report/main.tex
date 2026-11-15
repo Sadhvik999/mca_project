@@ -108,8 +108,12 @@ Handling memory write operations efficiently is central to cache microarchitectu
 
 For a blocking cache connected to a backing memory with \texttt{MEM\_LATENCY} $= 10$ cycles over a 128-bit block-wide interface, combining \textbf{write-back} with \textbf{write-allocate} minimizes redundant bus transactions. Each cache line therefore carries a \texttt{dirty} bit alongside its \texttt{valid} bit and tag, requiring the controller to perform a 128-bit \texttt{WRITE\_BACK} prior to \texttt{ALLOCATE} whenever a dirty block is evicted \cite{hennessy2019computer}.
 
-\subsection{Finite State Machine Architectures for Cache Controllers (M3)}
-% [M3 Section Placeholder: Multi-state controller sequencing, Mealy/Moore outputs, bus handshakes]
+\subsection{Miss classification and improving direct-mapped caches}
+A compulsory miss occurs on the first reference to a block. To classify later misses, compare the direct-mapped cache with a fully associative cache of the same capacity and block size, using least-recently-used replacement in the reference cache. A capacity miss also occurs in the reference cache because its limited storage forced the block out. A conflict miss is a miss in the direct-mapped cache that would hit in the reference cache \cite{patterson2020computer}.
+
+A 4~KB direct-mapped cache with 16-byte blocks places addresses \texttt{0x00000028} and \texttt{0x00001028} at the same index. The first access to each block is compulsory. Repeated alternation then causes conflict misses because the two blocks replace each other even though the rest of the cache has room. Increasing associativity allows both blocks to occupy the same set, at the cost of comparing more tags on each lookup \cite{hill1988case}.
+
+Jouppi proposed a small, fully associative victim cache that holds recently evicted lines. When a primary-cache miss hits in the victim cache, the requested block and the line it displaces can swap, avoiding a fetch from backing memory. This approach targets mapping conflicts while preserving the direct-mapped primary lookup \cite{jouppi1990improving}. The Phase~I prototype uses the direct-mapped baseline to expose the cost of those conflicts.
 
 \subsection{Simulation-Based Hardware Verification Frameworks (M4)}
 % [M4 Section Placeholder: Testbench architecture, self-checking scoreboarding, trace injection]
