@@ -6,7 +6,7 @@
 
 ## Overview
 
-This project implements a synthetically verifiable, cycle-accurate **Direct-Mapped L1 Cache Controller** designed in Verilog HDL. The cache bridges a high-performance 32-bit pipelined processor core and a high-latency backing main memory subsystem. The design employs a **write-back** policy with **write-allocate** on write misses, minimizing redundant bus transactions while guaranteeing memory coherence upon eviction.
+This Phase I prototype implements a blocking, direct-mapped L1 cache controller in Verilog for a 32-bit CPU interface. A write hit updates the cached word and marks its line dirty. A write miss allocates the block, and a dirty victim is written to backing memory before replacement.
 
 This repository encompasses **Phase I** deliverables:
 1. Complete RTL architecture specifications and modular Verilog modules.
@@ -57,68 +57,63 @@ This repository encompasses **Phase I** deliverables:
 
 ## Team Members & Responsibilities
 
-The project is developed sequentially by a team of 5 members adhering strictly to the handoff protocol:
-
-| Member | Stage | Role & Key Responsibilities | Branch | Status |
+| Member | Stage | Roll No. | Work | Feature branch |
 |---|---|---|---|---|
-| **M1 (Mustyala Sadhvik)** | Stage 1 | Repository foundation, directory layout, `.gitignore`, IEEEtran report skeleton & references, address split spec, block diagram, `tag_array.v` RTL, self-checking `tb_tag_array.v`, Abstract & Introduction & Lit Review (Locality/Orgs). | `feature/foundation` | [x] Completed |
-| **M2 (Varun Udata)** | Stage 2 | Data storage array (`data_array.v`), main memory model (`main_memory.v`), self-checking testbenches (`tb_data_array.v`, `tb_main_memory.v`), memory init script (`gen_mem_init.py`), write policy & datapath report sections. | `feature/data-and-memory` | [x] Completed |
-| **M3 (Amogha Raj Sandur)** | Stage 3 | Cache controller FSM (`cache_controller.v`), top-level cache integration (`cache_top.v`), smoke testbench (`tb_smoke.v`), FSM diagrams, and controller report sections. | `feature/fsm-controller` | [x] Completed |
-| **M4 (Team Member 4)** | Stage 4 | Memory trace driver, benchmark execution framework, system verification testbench (`tb_cache_top.v`). | `feature/system-tb` | [ ] Pending |
-| **M5 (Team Member 5)** | Stage 5 | Performance benchmarks & hit rate / AMAT analysis, GTKWave waveform generation, video demonstration script, final report synthesis. | `feature/eval-final` | [ ] Pending |
-
----
+| Mustyala Sadhvik | M1 | 2401020099 | Repository and report foundation, address split, tag array and unit test | `feature/foundation` |
+| Varun Udata | M2 | 2401010481 | Data array, backing memory, module tests, write policy and datapath documentation | `feature/data-and-memory` |
+| Amogha Raj Sandur | M3 | 2401010397 | Controller FSM, top-level integration, smoke test and FSM documentation | `feature/fsm-controller` |
+| Yachna Khanna | M4 | 2401010509 | Golden model, directed suite, simulation runner and waveform guide | `feature/testbench` |
+| Shrihari K N | M5 | 2401010448 | Performance counters, trace generation and replay, video script and report finalization | `feature/perf-and-final` |
 
 ## Directory Structure
 
 ```text
-mca_project/
-├── .gitignore                     # Ignores simulation dumps, binaries, and LaTeX aux files
-├── CONTRIBUTING.md                # Collaboration guidelines, branch & commit standards
-├── README.md                      # Project documentation and specifications
-├── docs/                          # Architectural and technical documentation
-│   ├── memory_model_spec.md       # Memory subsystem and latency handshake specifications
-│   ├── diagrams/                  # Microarchitectural diagrams & address split tables
-│   │   ├── address_split.md       # Detailed bit-field breakdown and worked examples
-│   │   ├── block_diagram.md       # Full microarchitecture Mermaid block diagram
-│   │   └── fsm_diagram.md         # Mealy/Moore FSM state transitions and handshake timing
-│   ├── report/                    # IEEEtran conference report source
-│   │   ├── main.tex               # Primary LaTeX manuscript
-│   │   ├── references.bib         # Verified classic architectural references
-│   │   └── README.md              # Report compilation instructions
-│   └── waveforms/                 # GTKWave configuration and captured waveforms
-├── results/                       # Simulation logs, benchmarks, and performance metrics
-│   ├── simulation_summary.md      # Summary of all module & integrated test outputs
-│   ├── tag_array_simulation.log   # M1 Tag Array testbench execution log (271 checks passed)
-│   ├── data_array_simulation.log  # M2 Data Array testbench execution log (283 checks passed)
-│   ├── main_memory_simulation.log # M2 Main Memory testbench execution log (42 checks passed)
-│   └── cache_top_smoke_simulation.log # M3 Integrated Cache Controller smoke test log (PASS)
-├── rtl/                           # Synthesizable Verilog RTL source files
-│   ├── tag_array.v                # 256-line Tag Array with valid & dirty bit tracking
-│   ├── data_array.v               # 256-line x 128-bit Data Array with word multiplexing
-│   ├── main_memory.v              # Backing memory model with 10-cycle latency handshake
-│   ├── cache_controller.v         # 4-state Mealy FSM Cache Controller
-│   └── cache_top.v                # Top-level cache module integrating controller and arrays
-├── scripts/                       # Trace generation and evaluation utility scripts
-│   └── gen_mem_init.py            # Generates deterministic memory preload hex file
-├── tb/                            # Verilog self-checking testbenches
-│   ├── tb_tag_array.v             # Verification suite for tag_array
-│   ├── tb_data_array.v            # Verification suite for data_array
-│   ├── tb_main_memory.v           # Verification suite for main_memory model
-│   └── tb_smoke.v                 # End-to-end integrated cache controller verification
-└── traces/                        # Benchmark memory trace files
-    └── mem_init.hex               # 64K-word memory initialization hex file
+rtl/              Tag and data arrays, controller, memory, top, performance counters
+tb/               Module tests, smoke test, golden model, directed suite, trace driver
+traces/           Backing memory initialization and sequential word-read trace
+scripts/          Simulation runner, memory initialization and trace generators
+docs/
+  diagrams/       Address split, block diagram and FSM
+  waveforms/      Directed simulation log and GTKWave inspection guide
+  report/         IEEEtran source and bibliography
+  phase1_report.pdf Compiled Phase I report
+  video_script.md Timed five-member demo script
+results/          Simulation summaries and module logs
 ```
-
----
 
 ## How to Run & Verification
 
-### Prerequisites
-- **Icarus Verilog** (`iverilog` v10+ or v13+)
-- **GTKWave** (for viewing `.vcd` waveform dumps)
-- **Python 3** (for analysis and trace generators)
-- **LaTeX / pdflatex** or **Overleaf** (for IEEEtran report compilation)
+Run these commands from the repository root so the simulations can load `traces/mem_init.hex`. Install Icarus Verilog (`iverilog` and `vvp`) and Python 3. GTKWave is used to open the optional VCD dumps.
+
+### Directed and integration tests
+
+```bash
+./scripts/run_sim.sh --test tb_directed
+./scripts/run_sim.sh --test all
+```
+
+The directed suite covers TC-01 through TC-08, including dirty eviction and read-back. The `all` target also runs the smoke test and golden reference model harness.
+
+To inspect the directed waveform, run:
+
+```bash
+gtkwave docs/waveforms/cache_directed.vcd
+```
+
+In `tb_directed`, add `clk`, `req`, `we`, `addr`, `wdata`, `rdata`, `ready`, `hit`, and `miss`. In `tb_directed.dut`, add `state`, `dirty`, `dirty_evict`, `write_word_en`, `mem_req`, `mem_we`, `mem_addr`, `mem_ready`, and `mem_wdata`. Display addresses and data in hex, and use decimal state values (`0=IDLE`, `1=COMPARE_TAG`, `2=WRITE_BACK`, `3=ALLOCATE`). Use the [waveform guide](docs/waveforms/README.md) to locate each scenario.
+
+### Sequential trace and counters
+
+```bash
+python3 scripts/gen_trace.py --pattern sequential --count 1024 --output traces/sequential.txt
+mkdir -p build
+iverilog -g2012 -Wall -s tb_trace -o build/tb_trace.vvp rtl/*.v tb/tb_trace.v
+vvp build/tb_trace.vvp +TRACE=traces/sequential.txt
+```
+
+The run reports 1,024 reads, 768 hits, 256 misses, zero writes and write-backs, and 5,121 cycles. The 75.00% hit rate comes from one cold miss and three hits per 16-byte block. The cycle counter includes every non-reset clock edge through the last response, including idle time.
+
+Use `+TRACE=path/to/file` for a custom trace. Each line is `R <hex_addr>` or `W <hex_addr> <hex_data>`. Use word-aligned byte addresses from `0x00000000` through `0x0003FFFC` and up to eight hex digits per value, with an optional `0x` prefix. The testbench checks read data and final counters against its reference model. Pass `+DUMP` to write `build/trace.vcd`, then inspect the counters under `tb_trace.dut.perf` in GTKWave.
 
 ### Running Module-Level Unit Testbenches
 
@@ -155,34 +150,37 @@ vvp build/tb_smoke.vvp +vcd
 The smoke test verifies cold read misses, hit servicing, dirty write-back on eviction, write allocation, and CPU ready handshakes across the 10-cycle memory latency.
 
 ### Compiling the Technical Report
+
 ```bash
 cd docs/report
 pdflatex main.tex
 bibtex main
 pdflatex main.tex
 pdflatex main.tex
+cp main.pdf ../phase1_report.pdf
 ```
+
+Download the [compiled Phase I report](docs/phase1_report.pdf) or see the [report instructions](docs/report/README.md) for Overleaf.
 
 ---
 
 ## Technical Demonstration Video
 
-- **Video Link**: TBD (5-minute demonstration video link will be provided upon completion of Phase I).
+- [Timed recording script](docs/video_script.md)
+- **Video link** TBD after recording and upload.
 
 ---
 
 ## Phase I Milestone Checklist
 
-- [x] Repository architecture, directory structure, and contribution rules established (`M1`).
-- [x] Detailed address split mapping and microarchitectural block diagrams documented (`M1`).
-- [x] Synthesizable Tag Array (`tag_array.v`) implemented with synchronous reset and dirty update (`M1`).
-- [x] Self-checking testbench (`tb_tag_array.v`) executed with 100% verification pass (`M1`).
-- [x] IEEEtran report skeleton initialized with verified classical citations (`M1`).
-- [x] Abstract, Introduction, and Literature Review Section II-A written (`M1`).
-- [x] Synthesizable Data Array (`data_array.v`) and unit testbench (`tb_data_array.v`) implemented (`M2`).
-- [x] Backing Main Memory behavioral model (`main_memory.v`) with 10-cycle latency handshake (`M2`).
-- [x] 4-state Cache Controller FSM (`cache_controller.v`) and top integration (`cache_top.v`) implemented (`M3`).
-- [x] Integrated cache smoke test (`tb_smoke.v`) verified with 100% pass (`M3`).
-- [x] Simulation logs and verification summary updated in `results/` (`M1`--`M3`).
-- [ ] System-level trace verification & hit rate analysis (`M4`/`M5`).
-- [ ] Final 5-minute video demonstration script and presentation (`M5`).
+- [x] M1 foundation, address split, tag RTL, unit test and report sections.
+- [x] M2 data array, backing memory, unit tests and report sections.
+- [x] M3 controller FSM, integration, smoke test and report sections.
+- [x] M4 golden model, directed suite, waveform guide and report sections.
+- [x] M5 performance counters and trace verification with a measured 75.00% sequential hit rate.
+- [x] M5 timed demonstration script.
+- [ ] Confirm all five members appear in GitHub Insights > Contributors.
+- [ ] Record the demo and add its video link above.
+- [ ] Resolve the report's IEEE Xplore verification note.
+- [x] Compile and include the Phase I PDF in `docs/`.
+- [x] [Repository link for the submission form](https://github.com/Sadhvik999/mca_project).

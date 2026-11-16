@@ -39,10 +39,10 @@
     \textit{Course: Modern Computer Architecture} \\
     Email: yachna.2024@nst.rishihood.edu.in}
     \and
-    \IEEEauthorblockN{Team Member 5 (M5)}
+    \IEEEauthorblockN{Shrihari K N (M5)}
     \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
     \textit{Course: Modern Computer Architecture} \\
-    Email: member5@example.edu}
+    \url{github.com/shriharikn17}}
 }
 
 \maketitle
@@ -125,8 +125,10 @@ Effective verification of cache subsystems necessitates a dual-layer strategy co
     \item \textbf{Corner-Case and Directed Stimulus}: As classified by Smith \cite{smith1982cache}, cache operations span distinct operational regimes: cold misses, cache hits, sub-word writes, write-allocate refills, clean evictions, and dirty write-backs. Targeted directed sequences systematically exercise boundary lines, index aliasing, and memory latency transitions that random stimulus might fail to trigger.
 \end{enumerate}
 
-\subsection{Cache Performance Metrics and Latency Analysis (M5)}
-% [M5 Section Placeholder: AMAT formulation, hit/miss trade-offs, CPI impact]
+\subsection{FPGA and Verilog cache controller implementations}
+Patterson and Hennessy describe cache-controller implementation as a combination of tag comparison, data storage, and control of memory transfers \cite{patterson2020computer}. Hill examines the access-time trade-offs of direct-mapped designs \cite{hill1988case}. In this prototype, a single indexed tag comparison feeds a Verilog state machine. Separate tag and data arrays keep the lookup path distinct from block transfers during refill and write-back.
+
+On an FPGA, block RAM read timing and port availability affect when a controller can compare a tag, return a word, or install a refill. Meaningful comparisons between implementations therefore require the device, memory configuration, workload, and measurement method. The Phase~I results are from RTL simulation. FPGA resource use and timing require device-specific synthesis and measurement. \mbox{[TODO: verify on IEEE Xplore]}
 
 \section{Proposed Solution}
 \subsection{System Architecture and Address Decomposition}
@@ -347,31 +349,58 @@ To enable visual inspection of signal timing, simulation waveforms were captured
     \item \textbf{Two-Phase Dirty Eviction}: In TC-07, \texttt{dirty\_evict} trips upon detecting a tag mismatch on a dirty line. The controller enters \texttt{WRITE\_BACK} ($10$ cycles with \texttt{mem\_we = 1}) before smoothly transitioning into \texttt{ALLOCATE} ($10$ cycles with \texttt{mem\_we = 0}), completely servicing the replacement in $22$ total clock cycles without bus contention.
 \end{itemize}
 
+% Leave room beside the preceding directed-test table in the left column.
+\vspace{200pt}
+\subsection{Sequential Trace and Performance Counters (M5)}
+The hardware counters record one event at the initial tag lookup. The controller suppresses the hit pulse when a miss replays after refill. Read and write totals increment at CPU completion, and write-backs increment when the memory handshake completes a block write. The cycle counter covers every rising edge out of reset, including idle edges. The trace test compares read data and counters against an independent backing-word and cache-metadata model.
+
+The trace starts from reset at byte address zero and issues $1024$ consecutive word reads. Each 16-byte block holds four words. The first word causes a compulsory miss and the next three hit by spatial locality \cite{smith1982cache}. Icarus Verilog reported $768$ hits, $256$ misses, no writes or write-backs, and $5121$ cycles. The measured hit and miss rates were $75.00\%$ and $25.00\%$. The cycle total includes the trace driver's startup idle edge and CPU and memory handshakes. It measures the elapsed trace run.
+
 \section{Individual Contributions}
-\begin{table}[htbp]
-\caption{Team Member Task Breakdown and Responsibility Matrix}
-\begin{center}
-\begin{tabular}{|c|p{4.8cm}|c|}
-\hline
-\textbf{Member} & \textbf{Core Module / Primary Deliverable} & \textbf{Status} \\
-\hline
-M1 & Foundation, Tag Array RTL, Unit Testbench, Intro \& Lit Review & Completed \\
-\hline
-M2 & Data Array, Main Memory Model, Unit Testbenches, Write Policies \& Datapath Sections & Completed \\
-\hline
-M3 & Cache Controller FSM, Top Integration, Smoke Testbench, FSM \& Transition Sections & Completed \\
-\hline
-M4 & Verification Testbenches (\texttt{tb\_cache}, \texttt{tb\_directed}), Test Plan, Simulation Runner \& Waveform Analysis & Completed \\
-\hline
-M5 & Trace Benchmarks, Hit Rate/AMAT Analysis, Video Demo & Pending \\
-\hline
-\end{tabular}
+Table~\ref{tab:contributions} summarizes the implementation and report work recorded in the Git history.
+
+\begin{table*}[t]
+\caption{Individual contributions by stage}
 \label{tab:contributions}
-\end{center}
-\end{table}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\begin{tabular}{@{}L{.15\textwidth}L{.10\textwidth}L{.23\textwidth}L{.18\textwidth}L{.27\textwidth}@{}}
+\toprule
+\textbf{Member} & \textbf{Roll No.} & \textbf{Modules and tests} &
+\textbf{Report sections} & \textbf{Commit areas} \\
+\midrule
+M1 Mustyala Sadhvik & 2401020099 &
+Implemented the tag array and its unit test. &
+Abstract, introduction, and locality review &
+Established the repository and IEEEtran skeleton and documented the address split and block diagram. \\
+\addlinespace
+M2 Varun Udata & 2401010481 &
+Implemented the data array and backing memory and tested each module. &
+Write policies and datapath &
+Added the memory-latency handshake and recorded the memory model specification. \\
+\addlinespace
+M3 Amogha Raj Sandur & 2401010397 &
+Implemented the controller FSM and wired the arrays and memory into the top level. &
+Miss classes, architecture, FSM, and transitions &
+Added and verified request capture, replay after refill, and dirty write-back in the smoke test. \\
+\addlinespace
+M4 Yachna Khanna & 2401010509 &
+Built the golden-memory harness, directed testbench, and simulation runner. &
+Verification methods, directed results, and waveforms &
+Documented the test plan and recorded the directed simulation and waveform guide. \\
+\addlinespace
+M5 Shrihari K N & 2401010448 &
+Added performance counters, the sequential trace generator, and the self-checking trace driver. &
+FPGA review, trace results, contributions, and conclusion &
+Recorded the measured hit rate and prepared the README, timed video script, and report bibliography. \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
 \section{Conclusion and Future Work}
-% [Summary of Phase I foundation and roadmap toward Phase II completion]
+The Phase~I prototype implements a blocking direct-mapped cache with write-back and write-allocate. The integrated directed tests verify its memory handshake and preservation of dirty data after eviction. A cold sequential trace yields the expected $75.00\%$ hit rate. Future work can compare additional access patterns and measure resource use and timing on an FPGA.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}

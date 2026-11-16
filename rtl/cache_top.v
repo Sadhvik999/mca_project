@@ -76,4 +76,14 @@ module cache_top #(
         .mem_req(mem_req), .mem_we(mem_we), .mem_addr(mem_addr),
         .mem_wdata(mem_wdata), .mem_rdata(mem_rdata), .mem_ready(mem_ready)
     );
+
+    // Observe existing handshake events without changing the CPU interface.
+    // The testbench and GTKWave read the totals under this instance.
+    perf_counters perf (
+        .clk(clk), .rst(rst), .hit(hit), .miss(miss),
+        .write_back_done(mem_req && mem_we && mem_ready),
+        .ready(ready), .write_word_en(write_word_en),
+        .accesses(), .hits(), .misses(), .write_backs(),
+        .total_cycles(), .reads(), .writes()
+    );
 endmodule
