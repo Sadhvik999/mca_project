@@ -6,11 +6,11 @@
 
 | Time | Speaker | Say |
 |---|---|---|
-| 0:00–0:06 | M1 | “Mustyala Sadhvik, roll 2401020099. We built a direct-mapped cache in Verilog.” |
-| 0:06–0:12 | M2 | “Varun Udata, roll 2401010481. We store and transfer four-word blocks.” |
-| 0:12–0:18 | M3 | “Amogha Raj Sandur, roll 2401010397. Our FSM handles hits, refills and write-backs.” |
-| 0:18–0:24 | M4 | “Yachna Khanna, roll 2401010509. We test the controller with reads, writes and evictions.” |
-| 0:24–0:30 | M5 | “Shrihari K N, roll 2401010448. We measure how often sequential reads hit.” |
+| 0:00–0:06 | M1 | “Mustyala Sadhvik, roll 2401020099. Direct-mapped Verilog cache.” |
+| 0:06–0:12 | M2 | “Varun Udata, roll 2401010481. Four-word cache blocks.” |
+| 0:12–0:18 | M3 | “Amogha Raj Sandur, roll 2401010397. Cache controller FSM.” |
+| 0:18–0:24 | M4 | “Yachna Khanna, roll 2401010509. Cache verification.” |
+| 0:24–0:30 | M5 | “Shrihari K N, roll 2401010448. Cache performance counters.” |
 
 ## 0:30–1:12 · M1 · Problem and address split
 
