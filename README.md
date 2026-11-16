@@ -76,6 +76,7 @@ docs/
   diagrams/       Address split, block diagram and FSM
   waveforms/      Directed simulation log and GTKWave inspection guide
   report/         IEEEtran source and bibliography
+  phase1_report.pdf Compiled Phase I report
   video_script.md Timed five-member demo script
 results/          Simulation summaries and module logs
 ```
@@ -159,7 +160,7 @@ pdflatex main.tex
 cp main.pdf ../phase1_report.pdf
 ```
 
-See the [report instructions](docs/report/README.md) for Overleaf.
+Download the [compiled Phase I report](docs/phase1_report.pdf) or see the [report instructions](docs/report/README.md) for Overleaf.
 
 ---
 
@@ -181,5 +182,5 @@ See the [report instructions](docs/report/README.md) for Overleaf.
 - [ ] Confirm all five members appear in GitHub Insights > Contributors.
 - [ ] Record the demo and add its video link above.
 - [ ] Resolve the report's IEEE Xplore verification note.
-- [ ] Compile and include the Phase I PDF in `docs/`.
+- [x] Compile and include the Phase I PDF in `docs/`.
 - [x] [Repository link for the submission form](https://github.com/Sadhvik999/mca_project).
