@@ -19,30 +19,25 @@
 \title{Design and Verification of a Direct-Mapped Cache Controller in Verilog}
 
 \author{
-    \IEEEauthorblockN{Mustyala Sadhvik (M1)}
-    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
-    \textit{Course: Modern Computer Architecture} \\
-    Email: musthyala.sadhvik2024@nst.rishihood.edu.in}
+    \IEEEauthorblockN{Mustyala Sadhvik}
+    \IEEEauthorblockA{2401020099 \\
+    \url{musthyala.sadhvik2024@nst.rishihood.edu.in}}
     \and
-    \IEEEauthorblockN{Varun Udata (M2)}
-    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
-    \textit{Course: Modern Computer Architecture} \\
-    Email: varunudata@gmail.com}
+    \IEEEauthorblockN{Udata Varun}
+    \IEEEauthorblockA{2401010481 \\
+    \url{udata.varun2024@nst.rishihood.edu.in}}
     \and
-    \IEEEauthorblockN{Amogha Raj Sandur (M3)}
-    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
-    \textit{Course: Modern Computer Architecture} \\
-    Email: amogharaj.sandur@yahoo.com}
+    \IEEEauthorblockN{Amogha Raj Sandur}
+    \IEEEauthorblockA{2401010397 \\
+    \url{s.raj2024@nst.rishihood.edu.in}}
     \and
-    \IEEEauthorblockN{Yachna Khanna (M4)}
-    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
-    \textit{Course: Modern Computer Architecture} \\
-    Email: yachna.2024@nst.rishihood.edu.in}
+    \IEEEauthorblockN{Yachna}
+    \IEEEauthorblockA{2401010509 \\
+    \url{yachna.2024@nst.rishihood.edu.in}}
     \and
-    \IEEEauthorblockN{Shrihari K N (M5)}
-    \IEEEauthorblockA{\textit{Department of Computer Science \& Engineering} \\
-    \textit{Course: Modern Computer Architecture} \\
-    \url{github.com/shriharikn17}}
+    \IEEEauthorblockN{Shrihari K N}
+    \IEEEauthorblockA{2401010448 \\
+    \url{shrihari.n2024@nst.rishihood.edu.in}}
 }
 
 \maketitle
@@ -349,8 +344,8 @@ To enable visual inspection of signal timing, simulation waveforms were captured
     \item \textbf{Two-Phase Dirty Eviction}: In TC-07, \texttt{dirty\_evict} trips upon detecting a tag mismatch on a dirty line. The controller enters \texttt{WRITE\_BACK} ($10$ cycles with \texttt{mem\_we = 1}) before smoothly transitioning into \texttt{ALLOCATE} ($10$ cycles with \texttt{mem\_we = 0}), completely servicing the replacement in $22$ total clock cycles without bus contention.
 \end{itemize}
 
-% Leave room beside the preceding directed-test table in the left column.
-\vspace{200pt}
+% Keep the preceding wide directed-test table clear of the M5 results.
+\clearpage
 \subsection{Sequential Trace and Performance Counters (M5)}
 The hardware counters record one event at the initial tag lookup. The controller suppresses the hit pulse when a miss replays after refill. Read and write totals increment at CPU completion, and write-backs increment when the memory handshake completes a block write. The cycle counter covers every rising edge out of reset, including idle edges. The trace test compares read data and counters against an independent backing-word and cache-metadata model.
 
