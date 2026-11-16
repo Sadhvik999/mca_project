@@ -1,16 +1,16 @@
 # Phase I demo script
 
-**Target runtime 4:45.** Each speaker should replace their roll-number cue with the number from the course roster. Open the block diagram, FSM diagram, and GTKWave before recording. Keep a terminal in the repository root.
+**Target runtime 4:45.** Open the block diagram, FSM diagram, and GTKWave before recording. Keep a terminal in the repository root.
 
 ## 0:00–0:30 · Team introductions
 
 | Time | Speaker | Say |
 |---|---|---|
-| 0:00–0:06 | M1 | “Mustyala Sadhvik, roll [M1 roll number]. We built a direct-mapped cache in Verilog.” |
-| 0:06–0:12 | M2 | “Varun Udata, roll [M2 roll number]. We store and transfer four-word blocks.” |
-| 0:12–0:18 | M3 | “Amogha Raj Sandur, roll [M3 roll number]. Our FSM handles hits, refills and write-backs.” |
-| 0:18–0:24 | M4 | “Yachna Khanna, roll [M4 roll number]. We test the controller with reads, writes and evictions.” |
-| 0:24–0:30 | M5 | “Shrihari K N, roll [M5 roll number]. We measure how often sequential reads hit.” |
+| 0:00–0:06 | M1 | “Mustyala Sadhvik, roll 2401020099. We built a direct-mapped cache in Verilog.” |
+| 0:06–0:12 | M2 | “Varun Udata, roll 2401010481. We store and transfer four-word blocks.” |
+| 0:12–0:18 | M3 | “Amogha Raj Sandur, roll 2401010397. Our FSM handles hits, refills and write-backs.” |
+| 0:18–0:24 | M4 | “Yachna Khanna, roll 2401010509. We test the controller with reads, writes and evictions.” |
+| 0:24–0:30 | M5 | “Shrihari K N, roll 2401010448. We measure how often sequential reads hit.” |
 
 ## 0:30–1:12 · M1 · Problem and address split
 

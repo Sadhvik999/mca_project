@@ -57,13 +57,13 @@ This repository encompasses **Phase I** deliverables:
 
 ## Team Members & Responsibilities
 
-| Member | Stage | Work | Feature branch |
-|---|---|---|---|
-| Mustyala Sadhvik | M1 | Repository and report foundation, address split, tag array and unit test | `feature/foundation` |
-| Varun Udata | M2 | Data array, backing memory, module tests, write policy and datapath documentation | `feature/data-and-memory` |
-| Amogha Raj Sandur | M3 | Controller FSM, top-level integration, smoke test and FSM documentation | `feature/fsm-controller` |
-| Yachna Khanna | M4 | Golden model, directed suite, simulation runner and waveform guide | `feature/testbench` |
-| Shrihari K N | M5 | Performance counters, trace generation and replay, video script and report finalization | `feature/perf-and-final` |
+| Member | Stage | Roll No. | Work | Feature branch |
+|---|---|---|---|---|
+| Mustyala Sadhvik | M1 | 2401020099 | Repository and report foundation, address split, tag array and unit test | `feature/foundation` |
+| Varun Udata | M2 | 2401010481 | Data array, backing memory, module tests, write policy and datapath documentation | `feature/data-and-memory` |
+| Amogha Raj Sandur | M3 | 2401010397 | Controller FSM, top-level integration, smoke test and FSM documentation | `feature/fsm-controller` |
+| Yachna Khanna | M4 | 2401010509 | Golden model, directed suite, simulation runner and waveform guide | `feature/testbench` |
+| Shrihari K N | M5 | 2401010448 | Performance counters, trace generation and replay, video script and report finalization | `feature/perf-and-final` |
 
 ## Directory Structure
 
@@ -180,6 +180,6 @@ See the [report instructions](docs/report/README.md) for Overleaf.
 - [x] M5 timed demonstration script.
 - [ ] Confirm all five members appear in GitHub Insights > Contributors.
 - [ ] Record the demo and add its video link above.
-- [ ] Confirm the five roll numbers and resolve the report's IEEE Xplore verification note.
+- [ ] Resolve the report's IEEE Xplore verification note.
 - [ ] Compile and include the Phase I PDF in `docs/`.
 - [x] [Repository link for the submission form](https://github.com/Sadhvik999/mca_project).
