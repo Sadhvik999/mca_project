@@ -57,13 +57,13 @@ This repository encompasses **Phase I** deliverables:
 
 ## Team Members & Responsibilities
 
-| Member | Stage | Roll No. | Work | Feature branch |
-|---|---|---|---|---|
-| Mustyala Sadhvik | M1 | 2401020099 | Repository and report foundation, address split, tag array and unit test | `feature/foundation` |
-| Varun Udata | M2 | 2401010481 | Data array, backing memory, module tests, write policy and datapath documentation | `feature/data-and-memory` |
-| Amogha Raj Sandur | M3 | 2401010397 | Controller FSM, top-level integration, smoke test and FSM documentation | `feature/fsm-controller` |
-| Yachna Khanna | M4 | 2401010509 | Golden model, directed suite, simulation runner and waveform guide | `feature/testbench` |
-| Shrihari K N | M5 | 2401010448 | Performance counters, trace generation and replay, video script and report finalization | `feature/perf-and-final` |
+| Member | Stage | Roll No. | Work |
+|---|---|---|---|
+| Mustyala Sadhvik | M1 | 2401020099 | Repository and report foundation, address split, tag array and unit test |
+| Varun Udata | M2 | 2401010481 | Data array, backing memory, module tests, write policy and datapath documentation |
+| Amogha Raj Sandur | M3 | 2401010397 | Controller FSM, top-level integration, smoke test and FSM documentation |
+| Yachna Khanna | M4 | 2401010509 | Golden model, directed suite, simulation runner and waveform guide |
+| Shrihari K N | M5 | 2401010448 | Performance counters, trace generation and replay, video script and report finalization |
 
 ## Directory Structure
 
@@ -149,7 +149,12 @@ vvp build/tb_smoke.vvp +vcd
 
 The smoke test verifies cold read misses, hit servicing, dirty write-back on eviction, write allocation, and CPU ready handshakes across the 10-cycle memory latency.
 
-### Compiling the Technical Report
+### Phase I Technical Report
+
+- [Compiled PDF](docs/phase1_report.pdf)
+- [LaTeX source](docs/report/main.tex) and [BibTeX bibliography](docs/report/references.bib)
+
+To compile locally, run these commands from the repository root.
 
 ```bash
 cd docs/report
@@ -160,7 +165,7 @@ pdflatex main.tex
 cp main.pdf ../phase1_report.pdf
 ```
 
-Download the [compiled Phase I report](docs/phase1_report.pdf) or see the [report instructions](docs/report/README.md) for Overleaf.
+See the [report instructions](docs/report/README.md) for Overleaf.
 
 ---
 
