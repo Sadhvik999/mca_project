@@ -84,6 +84,7 @@ RTL_FILES=(
     rtl/data_array.v
     rtl/tag_array.v
     rtl/main_memory.v
+    rtl/perf_counters.v
     rtl/cache_top.v
 )
 
