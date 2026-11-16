@@ -151,6 +151,8 @@ The smoke test verifies cold read misses, hit servicing, dirty write-back on evi
 
 ### Phase I Technical Report
 
+Report preparation and final integration were led by Mustyala Sadhvik (M1) and Shrihari K N (M5). The report credits all five members and describes their individual contributions.
+
 - [Compiled PDF](docs/phase1_report.pdf)
 - [LaTeX source](docs/report/main.tex) and [BibTeX bibliography](docs/report/references.bib)
 
