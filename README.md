@@ -14,14 +14,14 @@ This repository contains the complete **Phase I** deliverable (30% weightage) fo
 | Deliverable | Evaluation Weight | Primary Artefact Links | Description |
 |---|---|---|---|
 | **1. IEEE Project Report** | **10 Marks** | • [Compiled PDF](docs/phase1_report.pdf)<br>• [LaTeX Source](docs/report/main.tex)<br>• [BibTeX References](docs/report/references.bib) | Full IEEEtran manuscript covering Abstract, Literature Review, Microarchitectural Solution, Subsystem Verification, Individual Contributions, and verified references. |
-| **2. Prototype Demonstration Video** | **15 Marks** | • [**Video Link (Google Drive)**](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)<br>• [Timed Demo Script](docs/video_script.md) | 4:45 technical walkthrough introducing all 5 members, presenting block/FSM diagrams, live simulation execution, GTKWave waveform analysis, and 75.00% hit rate trace verification. |
+| **2. Prototype Demonstration Video** | **15 Marks** | • [**Video Link (Google Drive)**](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)<br>• [Video File (`docs/video/MCAProject.mp4`)](docs/video/MCAProject.mp4)<br>• [Timed Demo Script](docs/video_script.md) | 4:45 technical walkthrough introducing all 5 members, presenting block/FSM diagrams, live simulation execution, GTKWave waveform analysis, and 75.00% hit rate trace verification. |
 | **3. GitHub Repository & Code Artefacts** | **5 Marks** | • [GitHub Repository](https://github.com/Sadhvik999/mca_project)<br>• [RTL Directory](rtl/)<br>• [Verification Suites](tb/)<br>• [Simulation Logs](results/) | Modular RTL modules, self-checking testbenches, trace benchmarks, architectural diagrams, reproducible simulation runner, and verified commit history across all 5 members. |
 
 ---
 
 ## Prototype Video Demonstration (15 Marks)
 
-- **Video Access Link**: **[Google Drive Folder](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)**
+- **Video Access Link**: **[Google Drive Folder](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)** | **[Repository Video File](docs/video/MCAProject.mp4)**
 - **Timed Script Reference**: [`docs/video_script.md`](docs/video_script.md) (Target Runtime: 4:45 $\le$ 5 minutes)
 
 ### Video Presentation Structure & Member Introductions
@@ -83,6 +83,8 @@ mca_project/
 │   ├── memory_model_spec.md       # Memory subsystem and latency handshake specifications
 │   ├── test_plan.md               # Directed verification matrix and coverage goals
 │   ├── video_script.md            # Timed 5-member video presentation script (4:45)
+│   ├── video/                     # Technical demonstration video directory
+│   │   └── MCAProject.mp4         # 4:54 complete prototype demonstration video (1080p MP4)
 │   ├── diagrams/                  # Architectural diagrams and specifications
 │   │   ├── address_split.md       # 32-bit address field decomposition and worked examples
 │   │   ├── block_diagram.md       # Microarchitectural Mermaid block diagram
