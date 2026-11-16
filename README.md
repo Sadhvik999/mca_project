@@ -174,7 +174,7 @@ See the [report instructions](docs/report/README.md) for Overleaf.
 ## Technical Demonstration Video
 
 - [Timed recording script](docs/video_script.md)
-- **Video link** TBD after recording and upload.
+- **Video link**: [Phase I Video Demonstration (Google Drive)](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)
 
 ---
 
@@ -187,7 +187,7 @@ See the [report instructions](docs/report/README.md) for Overleaf.
 - [x] M5 performance counters and trace verification with a measured 75.00% sequential hit rate.
 - [x] M5 timed demonstration script.
 - [ ] Confirm all five members appear in GitHub Insights > Contributors.
-- [ ] Record the demo and add its video link above.
+- [x] Record the demo and add its video link above: [Phase I Video Demonstration](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link).
 - [ ] Resolve the report's IEEE Xplore verification note.
 - [x] Compile and include the Phase I PDF in `docs/`.
 - [x] [Repository link for the submission form](https://github.com/Sadhvik999/mca_project).
