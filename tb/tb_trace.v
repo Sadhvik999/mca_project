@@ -1,8 +1,16 @@
 `timescale 1ns / 1ps
 
-module tb_trace;
-    localparam MEMORY_WORDS = 65536;
-    localparam CACHE_LINES = 256;
+module tb_trace #(
+    parameter CACHE_SIZE  = 4096,
+    parameter BLOCK_SIZE  = 16,
+    parameter ADDR_WIDTH  = 32,
+    parameter MEM_LATENCY = 10
+);
+    localparam MEMORY_WORDS    = 65536;
+    localparam CACHE_LINES     = CACHE_SIZE / BLOCK_SIZE;
+    localparam OFFSET_BITS     = $clog2(BLOCK_SIZE);
+    localparam INDEX_BITS      = $clog2(CACHE_LINES);
+    localparam TAG_BITS        = ADDR_WIDTH - INDEX_BITS - OFFSET_BITS;
     localparam MAX_WAIT_CYCLES = 250;
 
     reg clk = 0;
@@ -11,10 +19,16 @@ module tb_trace;
     reg rst = 1;
     reg req = 0;
     reg we = 0;
-    reg [31:0] addr = 0, wdata = 0;
+    reg [ADDR_WIDTH-1:0] addr = 0;
+    reg [31:0] wdata = 0;
     wire [31:0] rdata;
     wire ready;
-    cache_top dut (
+    cache_top #(
+        .CACHE_SIZE(CACHE_SIZE),
+        .BLOCK_SIZE(BLOCK_SIZE),
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .MEM_LATENCY(MEM_LATENCY)
+    ) dut (
         .clk(clk), .rst(rst), .req(req), .we(we), .addr(addr),
         .wdata(wdata), .ready(ready), .rdata(rdata),
         .hit(), .miss(), .state(), .dirty_evict()
@@ -22,7 +36,7 @@ module tb_trace;
 
     // The oracle tracks CPU-visible words and cache metadata independently.
     reg [31:0] words [0:MEMORY_WORDS-1];
-    reg [19:0] tags [0:CACHE_LINES-1];
+    reg [TAG_BITS-1:0] tags [0:CACHE_LINES-1];
     bit valid [0:CACHE_LINES-1];
     bit dirty [0:CACHE_LINES-1];
     longint unsigned reads = 0, writes = 0, hits = 0, misses = 0, write_backs = 0;
@@ -66,19 +80,20 @@ module tb_trace;
     endfunction
 
     task automatic transact(input bit is_write, input [31:0] address, data);
-        reg [7:0] index;
+        reg [INDEX_BITS-1:0] index;
+        reg [TAG_BITS-1:0]   req_tag;
         reg [15:0] word_index;
         integer wait_cycles;
         begin
-            index = address[11:4];
+            {req_tag, index} = address[ADDR_WIDTH-1:OFFSET_BITS];
             word_index = address[17:2];
-            if (valid[index] && tags[index] == address[31:12]) begin
+            if (valid[index] && tags[index] == req_tag) begin
                 hits = hits + 1;
             end else begin
                 misses = misses + 1;
                 if (valid[index] && dirty[index])
                     write_backs = write_backs + 1;
-                tags[index] = address[31:12];
+                tags[index] = req_tag;
                 valid[index] = 1;
                 dirty[index] = 0;
             end
