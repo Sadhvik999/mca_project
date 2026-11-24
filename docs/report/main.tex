@@ -344,6 +344,46 @@ To enable visual inspection of signal timing, simulation waveforms were captured
     \item \textbf{Two-Phase Dirty Eviction}: In TC-07, \texttt{dirty\_evict} trips upon detecting a tag mismatch on a dirty line. The controller enters \texttt{WRITE\_BACK} ($10$ cycles with \texttt{mem\_we = 1}) before smoothly transitioning into \texttt{ALLOCATE} ($10$ cycles with \texttt{mem\_we = 0}), completely servicing the replacement in $22$ total clock cycles without bus contention.
 \end{itemize}
 
+\subsection{Corner Case Analysis and Verification (M1)}
+In Phase~II Stage~1, we developed a dedicated corner-case verification testbench (\texttt{tb/tb\_corner\_cases.v}) to systematically evaluate edge-case conditions, handshake hazards, and abort scenarios across the integrated cache controller. The suite couples the DUT to a golden reference memory model and validates microarchitectural state across eight distinct corner cases:
+
+\begin{enumerate}
+    \item \textbf{CC-01: First Access After Reset (All Lines Invalid)}: Immediately following synchronous reset assertion, every line in the tag array must have $\texttt{valid\_out} = 0$. When the CPU issues read access \texttt{0x00001040}, the controller must recognize the cold miss, suppress spurious dirty evictions ($\texttt{dirty\_evict} = 0$), advance through \texttt{ALLOCATE}, fill the line, and return the correct word.
+    \item \textbf{CC-02: Read Miss with Clean Victim}: When reading address \texttt{0x00002040} (mapping to the same index \texttt{0x04} occupied by valid clean line \texttt{0x00001040}), the controller detects a clean tag mismatch, bypasses \texttt{WRITE\_BACK}, enters \texttt{ALLOCATE} directly, and overwrites the line without redundant bus traffic.
+    \item \textbf{CC-03: Write Hit to a Dirty Line}: A store of \texttt{0xCAFE0001} to \texttt{0x00002040} hits an already dirty line. The controller asserts \texttt{ready} combinationally, updates Word~0 in the data array, preserves dirty status ($\texttt{dirty} = 1$), and keeps backing memory un-accessed.
+    \item \textbf{CC-04: Write Miss with Dirty Victim}: Issuing a store of \texttt{0xFACEB00C} to \texttt{0x00003044} (Index \texttt{0x04}) encounters dirty victim \texttt{0x00002040}. The controller initiates a two-phase replacement: first entering \texttt{WRITE\_BACK} to flush the dirty 128-bit block \texttt{0x00002040} to main memory, then transitioning to \texttt{ALLOCATE} to fetch block \texttt{0x00003040}, and finally completing the sub-word store into Word~1.
+    \item \textbf{CC-05: Conflict Ping-Pong on Same Index with Different Tags}: Alternating stores between \texttt{0x00001080} and \texttt{0x00002080} (both mapping to Index \texttt{0x08}) induce repeated dirty conflict evictions. Golden memory checking verifies that successive write-backs and allocations preserve complete data integrity without word corruption.
+    \item \textbf{CC-06: Reset in the Middle of a Transaction (Abort and Recovery)}: While the controller is actively waiting in \texttt{ALLOCATE} during a 10-cycle memory fetch, synchronous active-high \texttt{rst} is asserted. The FSM immediately aborts the active transaction, resets to \texttt{IDLE}, and invalidates all cache lines. Subsequent read requests to memory complete without pipeline stalls or invalid state persistence.
+    \item \textbf{CC-07: Request Held High Through Ready (Continuous Streaming)}: To verify continuous request throughput without deadlocks, \texttt{req} is maintained high across cycle boundaries while updating \texttt{addr}. Because \texttt{ready} is a Mealy output in \texttt{COMPARE\_TAG}, the controller completes the current access and immediately latches the streaming request into \texttt{IDLE}/\texttt{COMPARE\_TAG}.
+    \item \textbf{CC-08: Back-to-Back Requests Across Distinct Indices}: Consecutive read hits across alternating indices (\texttt{0x10} and \texttt{0x20}) execute in consecutive 2-cycle intervals with zero bubble cycles, achieving maximum theoretical CPU bandwidth.
+\end{enumerate}
+
+\begin{table}[htbp]
+\caption{Corner Case Verification Results (\texttt{tb\_corner\_cases.v})}
+\label{tab:corner_cases}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{|c|p{2.6cm}|p{2.2cm}|c|c|}
+\hline
+\textbf{Case} & \textbf{Scenario Description} & \textbf{Stimulus Address / Op} & \textbf{Cycles} & \textbf{Status} \\
+\hline
+CC-01 & Cold Miss Post-Reset & \texttt{0x00001040} (Read) & 12 & PASS \\
+CC-02 & Clean Victim Eviction & \texttt{0x00002040} (Read) & 12 & PASS \\
+CC-03 & Write Hit to Dirty Line & \texttt{0x00002040} (Write) & 2 & PASS \\
+CC-04 & Dirty Victim Write Miss & \texttt{0x00003044} (Write) & 23 & PASS \\
+CC-05 & Conflict Ping-Pong & \texttt{0x00001080} $\leftrightarrow$ \texttt{0x2080} & 67 & PASS \\
+CC-06 & Reset Abort \& Recovery & \texttt{0x00004050} (Abort @ ALLOC) & 15 & PASS \\
+CC-07 & Continuous Req Streaming & \texttt{0x00001040} $\rightarrow$ \texttt{0x1044} & 4 & PASS \\
+CC-08 & Back-to-Back Distinct Hits & \texttt{0x00000100} $\rightarrow$ \texttt{0x0200} & 4 & PASS \\
+\hline
+\multicolumn{3}{|l|}{\textbf{Total Corner Cases Evaluated}} & \textbf{8} & \textbf{100\% PASS} \\
+\hline
+\end{tabular}
+\end{table}
+
+As documented in Table~\ref{tab:corner_cases}, all eight corner cases passed self-checking assertion criteria with zero errors, confirming microarchitectural compliance under complex interleavings and boundary conditions. Simulation logs are archived in \texttt{results/corner\_cases\_simulation.log}.
+
 % Keep the preceding wide directed-test table clear of the M5 results.
 \clearpage
 \subsection{Sequential Trace and Performance Counters (M5)}
@@ -367,9 +407,9 @@ Table~\ref{tab:contributions} summarizes the implementation and report work reco
 \textbf{Report sections} & \textbf{Commit areas} \\
 \midrule
 M1 Mustyala Sadhvik & 2401020099 &
-Implemented the tag array and its unit test. &
-Abstract, introduction, and locality review &
-Established the repository and IEEEtran skeleton and documented the address split and block diagram. \\
+Implemented tag array, unit test, and Phase~II corner-case verification suite. &
+Abstract, introduction, locality review, and corner-case analysis &
+Established repository skeleton, documented address decomposition, and verified 8 corner cases. \\
 \addlinespace
 M2 Varun Udata & 2401010481 &
 Implemented the data array and backing memory and tested each module. &
