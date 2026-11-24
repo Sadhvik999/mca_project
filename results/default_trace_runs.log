@@ -1,0 +1,57 @@
++ iverilog -g2012 -Wall -s tb_trace -o build/m3_trace.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_trace.v
++ for pattern in sequential strided conflict random
++ vvp build/m3_trace.vvp +TRACE=traces/sequential.txt
+Trace: traces/sequential.txt
+Accesses:     1024
+Hits:         768
+Misses:       256
+Write-backs:  0
+Total cycles: 5121
+Reads:        1024
+Writes:       0
+Hit rate:     75.00%
+Miss rate:    25.00%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 51230000 (1ps)
++ for pattern in sequential strided conflict random
++ vvp build/m3_trace.vvp +TRACE=traces/strided.txt
+Trace: traces/strided.txt
+Accesses:     1024
+Hits:         0
+Misses:       1024
+Write-backs:  0
+Total cycles: 14337
+Reads:        1024
+Writes:       0
+Hit rate:     0.00%
+Miss rate:    100.00%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 143390000 (1ps)
++ for pattern in sequential strided conflict random
++ vvp build/m3_trace.vvp +TRACE=traces/conflict.txt
+Trace: traces/conflict.txt
+Accesses:     1024
+Hits:         0
+Misses:       1024
+Write-backs:  256
+Total cycles: 17153
+Reads:        768
+Writes:       256
+Hit rate:     0.00%
+Miss rate:    100.00%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 171550000 (1ps)
++ for pattern in sequential strided conflict random
++ vvp build/m3_trace.vvp +TRACE=traces/random.txt
+Trace: traces/random.txt
+Accesses:     1024
+Hits:         195
+Misses:       829
+Write-backs:  171
+Total cycles: 13878
+Reads:        780
+Writes:       244
+Hit rate:     19.04%
+Miss rate:    80.96%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 138800000 (1ps)
