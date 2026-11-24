@@ -262,7 +262,48 @@ A miss with a valid, dirty victim first writes the full block to the address for
 The controller is Mealy because \texttt{ready} depends on the tag comparison in \texttt{COMPARE\_TAG}, and the array fill enables depend on \texttt{mem\_ready} in \texttt{ALLOCATE}. The memory request and transfer direction depend on state. The debug signals report the initial lookup once per request, so a refill replay completes without adding a hit to the trace statistics.
 
 \subsection{Main Memory Interfacing and Latency Handshake}
-The backing memory model (\texttt{rtl/main\_memory.v}) simulates a 256~KB word-addressed main memory (\texttt{MEM\_SIZE\_WORDS} $= 65536$) preloaded at simulation startup via \texttt{\$readmemh} from \texttt{traces/mem\_init.hex} (with each word initialized deterministically to its word address). All cache-to-memory transactions transfer an aligned 16-byte block (\texttt{BLOCK\_SIZE} $= 16$, 128~bits), ignoring \texttt{mem\_addr[3:0]} so any unaligned address resolves to its enclosing aligned block \texttt{\{mem\_addr[17:4], 2'b00\}}. Internally, a three-state handshake controller (\texttt{S\_IDLE}, \texttt{S\_WAIT}, \texttt{S\_DONE}) latches \texttt{mem\_addr}, \texttt{mem\_we}, and \texttt{mem\_wdata} when \texttt{mem\_req} asserts, counts \texttt{MEM\_LATENCY} $= 10$ clock cycles, executes the 128-bit block write or read, and pulses \texttt{mem\_ready} for exactly one clock cycle. Because \texttt{S\_DONE} ignores trailing \texttt{mem\_req} assertions on the completion cycle, a Moore cache controller can transition directly from \texttt{WRITE\_BACK} to \texttt{ALLOCATE} without spurious re-triggering, and synchronous \texttt{rst} resets only the controller FSM while preserving preloaded memory contents.
+The backing memory model (\texttt{rtl/main\_memory.v}) simulates a 256~KB word-addressed main memory (\texttt{MEM\_SIZE\_WORDS} $= 65536$) preloaded at simulation startup via \texttt{\$readmemh} from \texttt{traces/mem\_init.hex} (with each word initialized deterministically to its word address). All cache-to-memory transactions transfer an aligned block of \texttt{BLOCK\_SIZE} bytes (\texttt{DATA\_WIDTH} $= \texttt{BLOCK\_SIZE} \times 8$ bits; 16~bytes / 128~bits by default), ignoring the low \texttt{OFFSET\_BITS} address bits so any unaligned address resolves to its enclosing aligned block. Internally, a three-state handshake controller (\texttt{S\_IDLE}, \texttt{S\_WAIT}, \texttt{S\_DONE}) latches \texttt{mem\_addr}, \texttt{mem\_we}, and \texttt{mem\_wdata} when \texttt{mem\_req} asserts, counts \texttt{MEM\_LATENCY} $= 10$ clock cycles, executes the block write or read across all $\texttt{BLOCK\_SIZE}/4$ words, and pulses \texttt{mem\_ready} for exactly one clock cycle. Because \texttt{S\_DONE} ignores trailing \texttt{mem\_req} assertions on the completion cycle, a Moore cache controller can transition directly from \texttt{WRITE\_BACK} to \texttt{ALLOCATE} without spurious re-triggering, and synchronous \texttt{rst} resets only the controller FSM while preserving preloaded memory contents.
+
+\subsection{Parameterized Design}
+To evaluate architectural trade-offs across cache capacities ($\texttt{CACHE\_SIZE} \in \{1024, 2048, 4096, 8192\}$~bytes) and line sizes ($\texttt{BLOCK\_SIZE} \in \{8, 16, 32\}$~bytes), all five RTL modules (\texttt{tag\_array}, \texttt{data\_array}, \texttt{cache\_controller}, \texttt{cache\_top}, and \texttt{main\_memory}) compute their storage geometry via \texttt{\$clog2} and \texttt{localparam} derivations \cite{hennessy2019computer, patterson2020computer}:
+\begin{align}
+\text{\texttt{NUM\_LINES}}   &= \frac{\text{\texttt{CACHE\_SIZE}}}{\text{\texttt{BLOCK\_SIZE}}}, \quad
+\text{\texttt{OFFSET\_BITS}} = \log_2(\text{\texttt{BLOCK\_SIZE}}), \\
+\text{\texttt{INDEX\_BITS}}  &= \log_2(\text{\texttt{NUM\_LINES}}), \quad
+\text{\texttt{DATA\_WIDTH}}  = 8 \times \text{\texttt{BLOCK\_SIZE}}, \\
+\text{\texttt{TAG\_BITS}}    &= \text{\texttt{ADDR\_WIDTH}} - \text{\texttt{INDEX\_BITS}} - \text{\texttt{OFFSET\_BITS}}.
+\end{align}
+Because a direct-mapped cache has one way per set, $\texttt{INDEX\_BITS} + \texttt{OFFSET\_BITS} = \log_2(\texttt{CACHE\_SIZE})$ holds identically across block sizes. Consequently, \texttt{TAG\_BITS} depends solely on total capacity ($22$, $21$, $20$, and $19$~bits for $1$, $2$, $4$, and $8$~KB), while doubling \texttt{BLOCK\_SIZE} at fixed capacity transfers one bit from \texttt{INDEX\_BITS} to \texttt{OFFSET\_BITS}, halves \texttt{NUM\_LINES}, and doubles the memory transfer bus \texttt{DATA\_WIDTH} ($64$, $128$, and $256$~bits). Conversely, doubling \texttt{CACHE\_SIZE} at fixed block size doubles \texttt{NUM\_LINES} and shifts one bit from \texttt{TAG\_BITS} into \texttt{INDEX\_BITS}. Both \texttt{data\_array} (word multiplexing and masked single-word write via indexed part-select) and \texttt{main\_memory} (word-loop packing across $\texttt{BLOCK\_SIZE}/4$ words) scale automatically with \texttt{-P} overrides while preserving identical default behavior at $(4096, 16)$.
+
+\begin{table}[htbp]
+\caption{Derived Address Bit Widths and Line Counts Across All 12 Configurations}
+\label{tab:param_configs}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+\textbf{Cache} & \textbf{Block} & \textbf{Lines} & \textbf{Tag} & \textbf{Index} & \textbf{Offset} & \textbf{Data Bus} \\
+\textbf{(B)} & \textbf{(B)} & (\texttt{NUM\_LINES}) & \textbf{(b)} & \textbf{(b)} & \textbf{(b)} & \textbf{(b)} \\
+\hline
+1024 & 8  & 128  & 22 & 7  & 3 & 64  \\
+1024 & 16 & 64   & 22 & 6  & 4 & 128 \\
+1024 & 32 & 32   & 22 & 5  & 5 & 256 \\
+\hline
+2048 & 8  & 256  & 21 & 8  & 3 & 64  \\
+2048 & 16 & 128  & 21 & 7  & 4 & 128 \\
+2048 & 32 & 64   & 21 & 6  & 5 & 256 \\
+\hline
+4096 & 8  & 512  & 20 & 9  & 3 & 64  \\
+\textbf{4096} & \textbf{16} & \textbf{256} & \textbf{20} & \textbf{8} & \textbf{4} & \textbf{128} \\
+4096 & 32 & 128  & 20 & 7  & 5 & 256 \\
+\hline
+8192 & 8  & 1024 & 19 & 10 & 3 & 64  \\
+8192 & 16 & 512  & 19 & 9  & 4 & 128 \\
+8192 & 32 & 256  & 19 & 8  & 5 & 256 \\
+\hline
+\end{tabular}
+\end{table}
 
 \subsection{Verification Architecture and Test Plan Design (M4)}
 To guarantee functional compliance, we construct an automated, self-checking verification environment in \texttt{tb/tb\_cache.v} and \texttt{tb/tb\_directed.v}, structured according to the test plan in \texttt{docs/test\_plan.md}. The verification infrastructure is organized around three design pillars:
@@ -412,9 +453,9 @@ Abstract, introduction, locality review, and corner-case analysis &
 Established repository skeleton, documented address decomposition, and verified 8 corner cases. \\
 \addlinespace
 M2 Varun Udata & 2401010481 &
-Implemented the data array and backing memory and tested each module. &
-Write policies and datapath &
-Added the memory-latency handshake and recorded the memory model specification. \\
+Implemented the data array, backing memory, full RTL parameterization, and 12-config sweep runner. &
+Write policies, datapath, and parameterized design &
+Added the latency handshake, memory spec, 12-config verification (\texttt{tb\_param\_check}), and \texttt{run\_sweep.py}. \\
 \addlinespace
 M3 Amogha Raj Sandur & 2401010397 &
 Implemented the controller FSM and wired the arrays and memory into the top level. &
