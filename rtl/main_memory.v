@@ -16,7 +16,8 @@
 //    - MEM_LATENCY    : 10 cycles (clock edges from request acceptance to
 //                       mem_ready sampled high by a synchronous consumer)
 //    - MEM_SIZE_WORDS : 65536 32-bit words (256 KB address window)
-//    - BLOCK_SIZE     : 16 bytes per transfer (4 words = 128 bits)
+//    - BLOCK_SIZE     : Block transfer size in bytes (8, 16, or 32 bytes;
+//                       corresponding to 64-bit, 128-bit, or 256-bit bus)
 //    - ADDR_WIDTH     : 32-bit byte address width
 //    - INIT_FILE      : Path to hex image loaded at t=0 via $readmemh
 //
@@ -25,12 +26,11 @@
 //    - rst            : Synchronous active-high reset (resets FSM/counters;
 //                       preserves preloaded memory contents)
 //    - mem_req        : Request strobe from cache controller (active high)
-//    - mem_we         : 1 = 128-bit block write, 0 = 128-bit block read
-//    - mem_addr[31:0] : Byte address; lower 4 bits [3:0] are ignored so any
-//                       unaligned address maps to its 16-byte aligned block
-//    - mem_wdata[127:0]: 16-byte write-back block (Word 0 in [31:0] .. Word 3
-//                        in [127:96])
-//    - mem_rdata[127:0]: 16-byte fetched block (valid when mem_ready == 1)
+//    - mem_we         : 1 = block write, 0 = block read
+//    - mem_addr[31:0] : Byte address; lower OFFSET_BITS are ignored so any
+//                       unaligned address maps to its BLOCK_SIZE-aligned block
+//    - mem_wdata      : BLOCK_SIZE*8-bit write-back block (Word 0 in [31:0] ..)
+//    - mem_rdata      : BLOCK_SIZE*8-bit fetched block (valid when mem_ready == 1)
 //    - mem_ready      : Single-cycle completion pulse after MEM_LATENCY cycles
 //
 // 3. Handshake Timing Notes:
@@ -65,9 +65,13 @@ module main_memory #(
     // -------------------------------------------------------------------------
     // Local Parameters & State Encoding
     // -------------------------------------------------------------------------
-    localparam BLOCK_BITS     = BLOCK_SIZE * 8;            // 128 bits
-    localparam WORD_ADDR_BITS = $clog2(MEM_SIZE_WORDS);    // 16 bits for 65536 words
-    localparam OFFSET_BITS    = $clog2(BLOCK_SIZE);        // 4 bits (byte + word offset)
+    localparam DATA_WIDTH       = BLOCK_SIZE * 8;             // 64, 128, or 256 bits
+    localparam BLOCK_BITS       = DATA_WIDTH;
+    localparam WORDS_PER_BLOCK  = BLOCK_SIZE / 4;             // 2, 4, or 8 words
+    localparam WORD_OFFSET_BITS = $clog2(WORDS_PER_BLOCK);    // 1, 2, or 3 bits
+    localparam OFFSET_BITS      = $clog2(BLOCK_SIZE);         // 3, 4, or 5 bits
+    localparam WORD_ADDR_BITS   = $clog2(MEM_SIZE_WORDS);     // 16 bits for 65536 words
+    localparam BLOCK_ADDR_BITS  = WORD_ADDR_BITS - WORD_OFFSET_BITS;
 
     localparam [1:0] S_IDLE = 2'd0;
     localparam [1:0] S_WAIT = 2'd1;
@@ -90,12 +94,13 @@ module main_memory #(
     reg [31:0]           wait_cnt;
     reg [ADDR_WIDTH-1:0] req_addr;
     reg                  req_we;
-    reg [BLOCK_BITS-1:0] req_wdata;
+    reg [DATA_WIDTH-1:0] req_wdata;
+    integer              w;
 
-    // Zeroing [3:0] aligns any byte address to its enclosing 16-byte block;
-    // low 2 bits [1:0] of word index select each of the 4 words in the block
-    wire [WORD_ADDR_BITS-3:0] imm_block_idx = mem_addr[WORD_ADDR_BITS+1 : OFFSET_BITS];
-    wire [WORD_ADDR_BITS-3:0] req_block_idx = req_addr[WORD_ADDR_BITS+1 : OFFSET_BITS];
+    // Zeroing [OFFSET_BITS-1:0] aligns any byte address to its enclosing block;
+    // low WORD_OFFSET_BITS of word index select each word inside the block
+    wire [BLOCK_ADDR_BITS-1:0] imm_block_idx = mem_addr[WORD_ADDR_BITS+1 : OFFSET_BITS];
+    wire [BLOCK_ADDR_BITS-1:0] req_block_idx = req_addr[WORD_ADDR_BITS+1 : OFFSET_BITS];
 
     // -------------------------------------------------------------------------
     // Latency Timer & Block Read/Write FSM
@@ -106,8 +111,8 @@ module main_memory #(
             wait_cnt  <= 32'd0;
             req_addr  <= {ADDR_WIDTH{1'b0}};
             req_we    <= 1'b0;
-            req_wdata <= {BLOCK_BITS{1'b0}};
-            mem_rdata <= {BLOCK_BITS{1'b0}};
+            req_wdata <= {DATA_WIDTH{1'b0}};
+            mem_rdata <= {DATA_WIDTH{1'b0}};
             mem_ready <= 1'b0;
         end else begin
             case (state)
@@ -117,17 +122,13 @@ module main_memory #(
                         if (MEM_LATENCY <= 1) begin
                             // Immediate 1-cycle completion path if parameterized latency is 1
                             if (mem_we) begin
-                                mem[{imm_block_idx, 2'b00}] <= mem_wdata[31:0];
-                                mem[{imm_block_idx, 2'b01}] <= mem_wdata[63:32];
-                                mem[{imm_block_idx, 2'b10}] <= mem_wdata[95:64];
-                                mem[{imm_block_idx, 2'b11}] <= mem_wdata[127:96];
+                                for (w = 0; w < WORDS_PER_BLOCK; w = w + 1) begin
+                                    mem[{imm_block_idx, w[WORD_OFFSET_BITS-1:0]}] <= mem_wdata[w*32 +: 32];
+                                end
                             end else begin
-                                mem_rdata <= {
-                                    mem[{imm_block_idx, 2'b11}],
-                                    mem[{imm_block_idx, 2'b10}],
-                                    mem[{imm_block_idx, 2'b01}],
-                                    mem[{imm_block_idx, 2'b00}]
-                                };
+                                for (w = 0; w < WORDS_PER_BLOCK; w = w + 1) begin
+                                    mem_rdata[w*32 +: 32] <= mem[{imm_block_idx, w[WORD_OFFSET_BITS-1:0]}];
+                                end
                             end
                             mem_ready <= 1'b1;
                             state     <= S_DONE;
@@ -144,19 +145,15 @@ module main_memory #(
 
                 S_WAIT: begin
                     if (wait_cnt == (MEM_LATENCY - 1)) begin
-                        // Execute 128-bit block transfer on final wait cycle
+                        // Execute BLOCK_SIZE-wide block transfer on final wait cycle
                         if (req_we) begin
-                            mem[{req_block_idx, 2'b00}] <= req_wdata[31:0];
-                            mem[{req_block_idx, 2'b01}] <= req_wdata[63:32];
-                            mem[{req_block_idx, 2'b10}] <= req_wdata[95:64];
-                            mem[{req_block_idx, 2'b11}] <= req_wdata[127:96];
+                            for (w = 0; w < WORDS_PER_BLOCK; w = w + 1) begin
+                                mem[{req_block_idx, w[WORD_OFFSET_BITS-1:0]}] <= req_wdata[w*32 +: 32];
+                            end
                         end else begin
-                            mem_rdata <= {
-                                mem[{req_block_idx, 2'b11}],
-                                mem[{req_block_idx, 2'b10}],
-                                mem[{req_block_idx, 2'b01}],
-                                mem[{req_block_idx, 2'b00}]
-                            };
+                            for (w = 0; w < WORDS_PER_BLOCK; w = w + 1) begin
+                                mem_rdata[w*32 +: 32] <= mem[{req_block_idx, w[WORD_OFFSET_BITS-1:0]}];
+                            end
                         end
                         mem_ready <= 1'b1;
                         state     <= S_DONE;
