@@ -77,3 +77,37 @@ counter rows.
   mv build/m3_latency_sweep.csv results/latency_sweep.csv
 )
 ```
+
+## AMAT from measured cycles
+
+```bash
+python3 scripts/amat.py results/latency_sweep.csv
+```
+
+The [AMAT table](../results/amat_table.csv) reports rates as fractions and
+timing in cycles. This calculator also accepts the counters CSV schema
+from M2's run script. For the back-to-back `tb_trace` driver, a hit occupies
+two counted edges: request capture and completion. The raw cycle count
+includes one startup idle edge. The cache's tag lookup itself takes one
+cycle.
+
+Let `C` be measured total cycles, `N` the number of accesses, and `M`
+the number of misses. The average extra cost per miss includes refill,
+controller overhead, and dirty write-backs whenever they occur.
+
+```text
+hit_rate     = hits / N
+miss_rate    = M / N
+hit_time     = 2 cycles
+miss_penalty = (C - 1 - N × hit_time) / M
+AMAT         = hit_time + miss_rate × miss_penalty
+```
+
+When a run has zero misses, the penalty is left blank and AMAT equals
+the hit time.
+
+For sequential at `MEM_LATENCY=10`, the measured counters are 1,024
+accesses, 768 hits, 256 misses, zero write-backs, and 5,121 cycles.
+The miss rate is `256 / 1024 = 0.25`. The measured penalty is
+`(5121 - 1 - 1024 × 2) / 256 = 12` cycles and AMAT is
+`2 + 0.25 × 12 = 5` cycles per access.
