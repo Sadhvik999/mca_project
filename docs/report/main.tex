@@ -432,6 +432,19 @@ The hardware counters record one event at the initial tag lookup. The controller
 
 The trace starts from reset at byte address zero and issues $1024$ consecutive word reads. Each 16-byte block holds four words. The first word causes a compulsory miss and the next three hit by spatial locality \cite{smith1982cache}. Icarus Verilog reported $768$ hits, $256$ misses, no writes or write-backs, and $5121$ cycles. The measured hit and miss rates were $75.00\%$ and $25.00\%$. The cycle total includes the trace driver's startup idle edge and CPU and memory handshakes. It measures the elapsed trace run.
 
+\subsection{Workloads and Methodology}
+The trace testbench starts each 1,024-request run with a cold cache. The sequential trace reads consecutive 32-bit words and measures the spatial reuse available within each 16-byte block. The strided trace first reads with a 16-byte stride to touch a fresh block per access. It then alternates between two blocks separated by the 4~KB cache capacity to exercise repeated replacement at one index. The conflict ping-pong trace alternates between addresses \texttt{0x0000} and \texttt{0x1000}. Every fourth request is a write, beginning with the first request, so subsequent accesses exercise dirty write-back as well as tag conflicts. The random trace uses seed 42 to sample word-aligned addresses uniformly over 16~KiB with a write probability of $1/4$. This working set exceeds the default cache capacity and tests reuse under mixed reads and writes.
+
+The testbench checks read data and the hardware counters against an independent reference model. The memory latency sweep repeats each trace at 5, 10, 20, and 50 cycles while holding the cache size at 4~KB and the block size at 16~bytes. The hit and miss rates are the corresponding counter totals divided by the number of accesses. We compute average memory access time (AMAT) in cycles per access as
+\begin{equation}
+\mathrm{AMAT} = T_{\mathrm{hit}} + r_{\mathrm{miss}} P_{\mathrm{miss}}.
+\end{equation}
+The hit path occupies $T_{\mathrm{hit}}=2$ counted clock edges for request capture and completion. For $N$ accesses, $M>0$ misses, and $C$ measured cycles, the mean additional miss penalty is
+\begin{equation}
+P_{\mathrm{miss}} = \frac{C - 1 - N T_{\mathrm{hit}}}{M}.
+\end{equation}
+The subtraction removes one idle startup edge and the hit-path baseline. The remaining cycles include refill, controller overhead, and any dirty write-backs. If there are zero misses, AMAT equals the hit time.
+
 \section{Individual Contributions}
 Table~\ref{tab:contributions} summarizes the implementation and report work recorded in the Git history.
 
