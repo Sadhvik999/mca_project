@@ -86,13 +86,13 @@ Measured under default backing memory latency `MEM_LATENCY = 10` cycles ($T_{\ma
 | **Random** | 1KB_8B  | 1024 | 53 | 971 | 218 | 16099 | 5.18% | 94.82% | 14.47 | 15.72 |
 | Random | 1KB_16B | 1024 | 55 | 969 | 228 | 16185 | 5.37% | 94.63% | 14.59 | 15.80 |
 | Random | 1KB_32B | 1024 | 59 | 965 | 234 | 16203 | 5.76% | 94.24% | 14.67 | 15.82 |
-| Random | 2KB_8B  | 1024 | 95 | 929 | 182 | 15199 | 9.28% | 90.72% | 14.15 | 14.84 |
-| Random | 2KB_16B | 1024 | 111 | 913 | 215 | 15370 | 10.84% | 89.16% | 14.58 | 15.00 |
+| Random | 2KB_8B  | 1024 | 95 | 929 | 182 | 15199 | 9.28% | 90.72% | 14.16 | 14.84 |
+| Random | 2KB_16B | 1024 | 111 | 913 | 215 | 15370 | 10.84% | 89.16% | 14.59 | 15.01 |
 | Random | 2KB_32B | 1024 | 118 | 906 | 224 | 15385 | 11.52% | 88.48% | 14.72 | 15.02 |
 | Random | 4KB_8B  | 1024 | 147 | 877 | 127 | 13970 | 14.36% | 85.64% | 13.59 | 13.64 |
 | **Random (Default)** | **4KB_16B** | **1024** | **195** | **829** | **171** | **13878** | **19.04%** | **80.96%** | **14.27** | **13.55** |
-| Random | 4KB_32B | 1024 | 239 | 785 | 197 | 13636 | 23.34% | 76.66% | 14.76 | 13.31 |
-| Random | 8KB_8B  | 1024 | 194 | 830 | 65 | 12724 | 18.95% | 81.05% | 12.86 | 12.43 |
+| Random | 4KB_32B | 1024 | 239 | 785 | 197 | 13636 | 23.34% | 76.66% | 14.76 | 13.32 |
+| Random | 8KB_8B  | 1024 | 194 | 830 | 65 | 12724 | 18.95% | 81.05% | 12.86 | 12.42 |
 | Random | 8KB_16B | 1024 | 296 | 728 | 92 | 11797 | 28.91% | 71.09% | 13.39 | 11.52 |
 | Random | 8KB_32B | 1024 | 395 | 629 | 124 | 10961 | 38.57% | 61.43% | 14.17 | 10.70 |
 
@@ -109,7 +109,7 @@ Measured under default backing memory latency `MEM_LATENCY = 10` cycles ($T_{\ma
 | Strided | 8KB_16B | 514 | 514 | 0 | 0 | 100.0% | 0.0% |
 | Conflict | 4KB_16B | 1,024 | 2 | 0 | 1,022 | 0.2% | 99.8% |
 | Conflict | 8KB_16B | 2 | 2 | 0 | 0 | 100.0% | 0.0% |
-| Random | 1KB_16B | 969 | 644 | 273 | 52 | 66.5% | 5.4% |
+| Random | 1KB_16B | 969 | 644 | 307 | 18 | 66.5% | 1.9% |
 | Random | 4KB_16B | 829 | 644 | 133 | 52 | 77.7% | 6.3% |
 | Random | 8KB_16B | 728 | 644 | 9 | 75 | 88.5% | 10.3% |
 
@@ -117,7 +117,7 @@ Measured under default backing memory latency `MEM_LATENCY = 10` cycles ($T_{\ma
 
 ## 4. Key Architectural Insights for Viva Defense
 
-1. **Why does Sequential hit rate double with block size?**
+1. **How does sequential hit rate change with block size?**
    Sequential word accesses experience strictly compulsory cold misses. In an $N$-word block, the first word misses, and the remaining $N-1$ words hit due to spatial locality.
    $$\text{Hit Rate} = \frac{N-1}{N}$$
    - 8 B ($N=2$): $1/2 = 50.00\%$
