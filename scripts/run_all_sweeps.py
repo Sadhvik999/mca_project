@@ -7,6 +7,8 @@ Generates:
   - results/sweep_<trace>.csv for each workload
   - results/sweep_all_traces.csv (consolidated hardware counters)
   - results/param_sweeps_amat.csv (with AMAT, hit/miss rates, and miss penalties)
+  - results/sweep_cache_size.csv and sweep_block_size.csv (slices of the grid)
+  - results/latency_sweep.csv and amat_table.csv (with --latency-sweep)
 """
 
 import argparse
@@ -15,13 +17,40 @@ import subprocess
 import sys
 from pathlib import Path
 
+from run_sweep import CSV_HEADER, format_config, run_single_config
+
 TRACES = ["sequential", "strided", "conflict", "random"]
-DEFAULT_CONFIGS = [
-    "1024:8", "1024:16", "1024:32",
-    "2048:8", "2048:16", "2048:32",
-    "4096:8", "4096:16", "4096:32",
-    "8192:8", "8192:16", "8192:32",
-]
+LATENCIES = (5, 10, 20, 50)
+
+
+def write_rows(path, fields, rows):
+    with path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def write_sweep_slices(results_dir, amat_csv, mem_latency):
+    with amat_csv.open(newline="", encoding="utf-8") as input_file:
+        reader = csv.DictReader(input_file)
+        fields = ["trace", "cache_size_kib", "block_size_bytes", "mem_latency"]
+        fields.extend(field for field in reader.fieldnames if field != "trace")
+        rows = []
+        for row in reader:
+            cache, block = row["config"].split("_")
+            rows.append({
+                **row,
+                "cache_size_kib": int(cache.removesuffix("KB")),
+                "block_size_bytes": int(block.removesuffix("B")),
+                "mem_latency": mem_latency,
+            })
+    for name, field, value in (
+        ("cache_size", "block_size_bytes", 16),
+        ("block_size", "cache_size_kib", 4),
+    ):
+        path = results_dir / f"sweep_{name}.csv"
+        write_rows(path, fields, (row for row in rows if row[field] == value))
+        print(f"Wrote {path}")
 
 
 def main():
@@ -43,6 +72,11 @@ def main():
         "--skip-simulation",
         action="store_true",
         help="Skip Verilog simulation if individual sweep CSVs already exist",
+    )
+    parser.add_argument(
+        "--latency-sweep",
+        action="store_true",
+        help="Also simulate 5, 10, 20 and 50 cycles at 4 KiB / 16 B",
     )
     args = parser.parse_args()
 
@@ -80,11 +114,7 @@ def main():
 
     # Write consolidated raw sweep counters
     consolidated_csv = results_dir / "sweep_all_traces.csv"
-    fieldnames = ["trace", "config", "accesses", "hits", "misses", "writebacks", "cycles"]
-    with consolidated_csv.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(all_rows)
+    write_rows(consolidated_csv, ["trace", *CSV_HEADER], all_rows)
     print(f"\n[INFO] Consolidated {len(all_rows)} runs into {consolidated_csv}")
 
     # Compute AMAT table using scripts/amat.py
@@ -97,6 +127,27 @@ def main():
         "--output",
         str(amat_output_csv),
     ], check=True)
+    if not args.skip_simulation:
+        write_sweep_slices(results_dir, amat_output_csv, args.mem_latency)
+
+    if args.latency_sweep:
+        baseline = {
+            row["trace"]: {field: row[field] for field in CSV_HEADER}
+            for row in all_rows if row["config"] == format_config(4096, 16)
+        }
+        latency_rows = []
+        for latency in LATENCIES:
+            for trace in args.traces:
+                if latency == args.mem_latency and not args.skip_simulation:
+                    row = baseline[trace]
+                else:
+                    row = run_single_config(repo_root, f"traces/{trace}.txt", 4096, 16, latency)
+                latency_rows.append({"trace": trace, "mem_latency": latency, **row})
+        latency_csv = results_dir / "latency_sweep.csv"
+        write_rows(latency_csv, ["trace", "mem_latency", *CSV_HEADER], latency_rows)
+        subprocess.run([
+            sys.executable, str(amat_script), str(latency_csv),
+        ], check=True)
 
     print("[SUCCESS] All multi-trace parameterized sweeps completed successfully!")
 
