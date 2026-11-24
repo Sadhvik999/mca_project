@@ -445,6 +445,50 @@ P_{\mathrm{miss}} = \frac{C - 1 - N T_{\mathrm{hit}}}{M}.
 \end{equation}
 The subtraction removes one idle startup edge and the hit-path baseline. The remaining cycles include refill, controller overhead, and any dirty write-backs. If there are zero misses, AMAT equals the hit time.
 
+\subsection{Parameterized Sweeps, Miss Classification, and AMAT Evaluation (M4)}
+To evaluate architectural trade-offs across geometry and program locality, we executed cycle-accurate Verilog sweeps across 48 configurations ($4\times\text{cache sizes } [1, 2, 4, 8\text{~KB}] \times 3\times\text{block sizes } [8, 16, 32\text{~B}] \times 4\text{ workloads}$) using \texttt{scripts/run\_all\_sweeps.py}. Furthermore, we applied Hill's classic 3Cs taxonomy \cite{hill1988case, hennessy2019computer} to classify every miss into compulsory (cold), capacity, and conflict components via \texttt{scripts/miss\_classification.py}. Table~\ref{tab:phase2_evaluation} presents the hardware counters, miss decomposition, and measured AMAT for representative configurations.
+
+\begin{table*}[t]
+\caption{Hardware Performance Counters, 3Cs Miss Decomposition, and AMAT Evaluation across Workloads ($\mathrm{MEM\_LATENCY}=10$)}
+\label{tab:phase2_evaluation}
+\centering
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}llrrrrrrrrr@{}}
+\toprule
+\textbf{Workload} & \textbf{Config} & \textbf{Hits} & \textbf{Misses} & \textbf{Dirty WB} & \textbf{Hit Rate} & \textbf{Compulsory} & \textbf{Capacity} & \textbf{Conflict} & \textbf{Cycles} & \textbf{AMAT (cyc)} \\
+\midrule
+Sequential & 4~KB, 8~B   & 512  & 512  & 0   & 50.00\% & 512 (100\%) & 0  & 0           & 8,193  & 8.00 \\
+Sequential & 4~KB, 16~B  & 768  & 256  & 0   & 75.00\% & 256 (100\%) & 0  & 0           & 5,121  & 5.00 \\
+Sequential & 4~KB, 32~B  & 896  & 128  & 0   & 87.50\% & 128 (100\%) & 0  & 0           & 3,585  & 3.50 \\
+\addlinespace
+Strided    & 4~KB, 16~B  & 0    & 1,024& 0   & 0.00\%  & 514 (50.2\%)& 0  & 510 (49.8\%)& 14,337 & 14.00 \\
+Strided    & 8~KB, 16~B  & 510  & 514  & 0   & 49.80\% & 514 (100\%) & 0  & 0 (0.0\%)   & 8,217  & 8.02 \\
+Strided    & 8~KB, 32~B  & 766  & 258  & 0   & 74.80\% & 258 (100\%) & 0  & 0 (0.0\%)   & 5,145  & 5.02 \\
+\addlinespace
+Conflict   & 4~KB, 16~B  & 0    & 1,024& 256 & 0.00\%  & 2 (0.2\%)   & 0  & 1,022 (99.8\%)& 17,153 & 16.75 \\
+Conflict   & 8~KB, 16~B  & 1,022& 2    & 0   & 99.80\% & 2 (100\%)   & 0  & 0 (0.0\%)   & 2,073  & 2.02 \\
+\addlinespace
+Random     & 1~KB, 16~B  & 55   & 969  & 228 & 5.37\%  & 644 (66.5\%)& 273 (28.2\%) & 52 (5.4\%)  & 16,185 & 15.76 \\
+Random     & 4~KB, 16~B  & 195  & 829  & 171 & 19.04\% & 644 (77.7\%)& 133 (16.0\%) & 52 (6.3\%)  & 13,878 & 13.55 \\
+Random     & 8~KB, 16~B  & 296  & 728  & 92  & 28.91\% & 644 (88.5\%)& 9 (1.2\%)    & 75 (10.3\%) & 11,797 & 11.51 \\
+Random     & 8~KB, 32~B  & 395  & 629  & 124 & 38.57\% & 442 (70.3\%)& 9 (1.4\%)    & 178 (28.3\%)& 10,961 & 10.70 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsubsection{Spatial Locality and Block Size Scaling}
+As demonstrated by the sequential trace across block sizes 8~B, 16~B, and 32~B, all 512, 256, and 128 misses are 100\% compulsory cold misses \cite{smith1982cache}. Doubling the block size from 8~B to 16~B and 32~B yields an exact $2\times$ reduction in compulsory misses ($512 \to 256 \to 128$), improving hit rate from $50.00\%$ to $75.00\%$ and $87.50\%$. Correspondingly, AMAT decreases from $8.00$ to $5.00$ and $3.50$ cycles. Because all referenced addresses reside within an aligned 4~KB region and are accessed sequentially without reuse, cache capacity scaling from 1~KB to 8~KB does not alter hit rates, confirming that spatial prefetching within wider cache blocks is the sole driver of locality for non-recurrent streams.
+
+\subsubsection{Resolution of Conflict Thrashing at 8~KB Capacity}
+The conflict ping-pong workload demonstrates the pathological vulnerability of direct-mapped indexing \cite{hill1988case}. Two memory blocks separated by exactly 4~KB (\texttt{0x0000} and \texttt{0x1000}) are referenced alternately. In the default 4~KB cache (and similarly at 1~KB and 2~KB), both addresses produce index 0 ($(\texttt{0x1000} \gg 4) \pmod{256} = 0$). Despite having a total working set of only two 16-byte lines (32 bytes), direct-mapped mapping constraints force repeated ping-pong evictions. Of the 1,024 misses, exactly 2 are compulsory (the initial reference to each address) and 1,022 ($99.8\%$) are pure conflict misses. Furthermore, because every fourth request is a write, 256 dirty write-backs are triggered, inflating execution time to 17,153 cycles and AMAT to 16.75 cycles.
+
+When the cache capacity expands to 8~KB, the index field expands from 8 bits to 9 bits ($S=512$ sets). Consequently, \texttt{0x0000} maps to set index 0, whereas \texttt{0x1000} maps to set index 256 ($(\texttt{0x1000} \gg 4) \pmod{512} = 256$). This bit transition completely eliminates set collision:
+conflict misses drop from 1,022 to 0, hits jump from 0 to 1,022 ($99.80\%$ hit rate), dirty evictions drop to zero, total cycles collapse from 17,153 to 2,073 (an $87.9\%$ reduction), and AMAT plummets from 16.75 to 2.02 cycles. A similar resolution occurs in the strided trace during its second-phase ping-pong, where 510 conflict misses are eradicated in the 8~KB configuration.
+
+\subsubsection{Random Access and Capacity Scaling}
+For the pseudorandom trace sampled uniformly across 16~KiB, the working set exceeds the default cache capacity. Miss classification reveals that compulsory misses remain constant at 644 for 16-byte lines ($62.9\%$ of accesses). As capacity increases from 1~KB to 8~KB, capacity misses decrease sharply ($273 \to 133 \to 9$), reducing total misses from 969 to 728 and lowering AMAT from 15.76 to 11.51 cycles. Widening the block size to 32~B further exploits fortuitous spatial proximity in random strides, driving hit rate to $38.57\%$ and AMAT to 10.70 cycles.
+
 \section{Individual Contributions}
 Table~\ref{tab:contributions} summarizes the implementation and report work recorded in the Git history.
 
