@@ -3,12 +3,12 @@
 
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
 \usepackage{graphicx}
+\graphicspath{{../../results/plots/}{figures/}}
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{booktabs}
-\usepackage{url}
+\usepackage[hidelinks]{hyperref}
 \usepackage{array}
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
@@ -16,7 +16,7 @@
 
 \begin{document}
 
-\title{Design and Verification of a Direct-Mapped Cache Controller in Verilog\thanks{Technical demonstration video: \url{https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link}}}
+\title{Design and Verification of a Direct-Mapped Cache Controller in Verilog\thanks{\protect\href{https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link}{Technical demonstration video}}}
 
 \author{
     \IEEEauthorblockN{Mustyala Sadhvik}
@@ -31,7 +31,7 @@
     \IEEEauthorblockA{2401010397 \\
     \url{s.raj2024@nst.rishihood.edu.in}}
     \and
-    \IEEEauthorblockN{Yachna}
+    \IEEEauthorblockN{Yachna Khanna}
     \IEEEauthorblockA{2401010509 \\
     \url{yachna.2024@nst.rishihood.edu.in}}
     \and
@@ -43,7 +43,7 @@
 \maketitle
 
 \begin{abstract}
-This paper presents the architectural specification, RTL implementation, and cycle-accurate functional verification of a 4~KB direct-mapped L1 cache controller implemented in synthesizable Verilog HDL. In contemporary microprocessor architectures, the substantial latency divergence between high-frequency execution pipelines and dynamic random-access memory (DRAM)---widely known as the memory wall---dictates that memory hierarchy performance directly constrains sustained processor throughput. To alleviate this latency bottleneck, we design a blocking, single-request direct-mapped cache subsystem optimized for a 32-bit physical address space. The cache features 256 lines with 16-byte blocks (a 128-bit datapath), implementing a write-back policy coupled with write-allocate on write misses. The hardware architecture incorporates a modular 256-entry tag array with dedicated valid and dirty status tracking, an indexed data array with sub-word multiplexing, and a four-state Mealy/Moore finite state machine (\texttt{IDLE}, \texttt{COMPARE\_TAG}, \texttt{WRITE\_BACK}, and \texttt{ALLOCATE}) coordinating transactions across a 10-cycle backing memory interface. In this Phase~I contribution, we establish the repository infrastructure, formalize the microarchitectural address decomposition, implement the synthesizable tag storage subsystem, and validate functionality through comprehensive self-checking testbenches using Icarus Verilog and GTKWave. Unit verification confirms 100\% functional pass across initialization, tag matching, selective dirty bit assertion, and entry isolation.
+We implement and evaluate a parameterized, blocking direct-mapped cache for a 32-bit word-oriented CPU interface. The Verilog controller uses write-back, write-allocate, and a four-state finite state machine for lookup, dirty eviction, and refill. Self-checking Icarus Verilog tests cover all 12 cache geometries, including capacities from 1 to 8~KiB and block sizes from 8 to 32~B. Phase~II evaluates sequential, strided, conflict, and random workloads in 48 geometry runs, plus a fixed-geometry latency sweep. At 4~KiB with 16~B blocks and 10-cycle backing memory, sequential achieves 75.00\% hits and an average memory access time (AMAT) of 5.00~cycles/access. Conflict ping-pong incurs 1,022 conflict misses and 256 dirty write-backs at the same geometry. At 8~KiB the two blocks map to different indices and the hit rate reaches 99.80\%. Increasing memory latency from 5 to 50 cycles raises conflict AMAT from 10.50 to 66.75~cycles/access, reflecting the cost of both refills and write-backs.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -59,7 +59,7 @@ In accordance with Amdahl's Law, as arithmetic execution latency diminishes, mem
 \subsection{Problem Statement}
 Designing an effective Level-1 (L1) cache controller requires careful balancing among access latency, circuit complexity, silicon area, and coherence guarantees. While higher associativity can suppress conflict misses, it introduces parallel tag comparators, wide multiplexing networks, and replacement policy state logic, which can degrade the processor's critical timing path.
 
-The primary objective of this project is to implement a cycle-accurate, fully synthesizable hardware controller in Verilog HDL for a 4~KB direct-mapped cache. The controller must seamlessly interface with a 32-bit processor core and a backing memory exhibiting a fixed 10-cycle transfer latency. The system must support byte-addressable operations, 16-byte block transfers, valid and dirty state tracking per cache line, a write-back eviction policy to conserve memory bus bandwidth, write-allocate refills on write misses, and a deterministic four-state finite state machine (FSM) ensuring race-free, blocking protocol handshakes.
+The primary objective of this project is to implement a cycle-accurate, fully synthesizable hardware controller in Verilog HDL for a 4~KB direct-mapped cache. The controller must seamlessly interface with a 32-bit processor core and a backing memory exhibiting a fixed 10-cycle transfer latency. The system must accept aligned word operations using byte addresses, 16-byte block transfers, valid and dirty state tracking per cache line, a write-back eviction policy to conserve memory bus bandwidth, write-allocate refills on write misses, and a deterministic four-state finite state machine (FSM) ensuring race-free, blocking protocol handshakes.
 
 \subsection{Design Objectives}
 The specific engineering and architectural objectives for this implementation encompass:
@@ -84,7 +84,7 @@ Architecturally, cache structures are categorized into three primary placement p
 \begin{enumerate}
     \item \textbf{Direct-Mapped}: Each physical block address maps deterministically to exactly one cache line, governed by the modular relationship:
     \begin{equation}
-        \text{Index} = \left(\frac{\text{Block Address}}{\text{Block Size}}\right) \bmod (\text{Number of Lines})
+        \text{Index} = \left\lfloor\frac{\text{Byte Address}}{\text{Block Size}}\right\rfloor \bmod (\text{Number of Lines})
     \end{equation}
     Because only a single tag comparison is required per access, direct-mapped caches require no associative search logic, eliminate replacement decision algorithms (such as LRU or pseudo-LRU), and minimize multiplexer fan-in. In his seminal work, Hill \cite{hill1988case} argued compellingly that direct-mapped caches frequently yield superior overall system performance in timing-critical L1 configurations. When cache hit latency dictates the processor's primary clock cycle period, the critical-path timing advantages of direct-mapped indexing offset the marginally lower miss rates of multi-way associative designs. However, direct-mapped structures remain vulnerable to conflict misses, which occur when multiple actively referenced memory blocks map to the same line index.
     \item \textbf{Set-Associative}: Caches partition storage into sets of $N$ parallel ways ($N \ge 2$). A block maps to a unique set, but may occupy any way within that set. While set-associativity reduces conflict misses, it incurs increased hardware area, dynamic power dissipation, parallel comparator structures, and multiplexing delays on the hit data path \cite{hennessy2019computer}.
@@ -120,10 +120,8 @@ Effective verification of cache subsystems necessitates a dual-layer strategy co
     \item \textbf{Corner-Case and Directed Stimulus}: As classified by Smith \cite{smith1982cache}, cache operations span distinct operational regimes: cold misses, cache hits, sub-word writes, write-allocate refills, clean evictions, and dirty write-backs. Targeted directed sequences systematically exercise boundary lines, index aliasing, and memory latency transitions that random stimulus might fail to trigger.
 \end{enumerate}
 
-\subsection{FPGA and Verilog cache controller implementations}
-Patterson and Hennessy describe cache-controller implementation as a combination of tag comparison, data storage, and control of memory transfers \cite{patterson2020computer}. Hill examines the access-time trade-offs of direct-mapped designs \cite{hill1988case}. In this prototype, a single indexed tag comparison feeds a Verilog state machine. Separate tag and data arrays keep the lookup path distinct from block transfers during refill and write-back.
-
-On an FPGA, block RAM read timing and port availability affect when a controller can compare a tag, return a word, or install a refill. Meaningful comparisons between implementations therefore require the device, memory configuration, workload, and measurement method. The Phase~I results are from RTL simulation. FPGA resource use and timing require device-specific synthesis and measurement. \mbox{[TODO: verify on IEEE Xplore]}
+\subsection{FPGA and Verilog Cache Implementations}
+Hill relates direct mapping to the critical path of a cache lookup \cite{hill1988case}. On an FPGA, the achievable hit path also depends on the inferred storage and its read timing. The Verilog tag and data arrays here expose combinational reads. A synchronous block-RAM mapping would require accounting for its registered read in the controller schedule. The block-wide refill, per-word writes, metadata updates, and reset behavior also affect memory inference. A hardware comparison would report the FPGA family, memory resources, achievable frequency, and workload alongside cycle counts. This project measures RTL behavior with a behavioral memory model.
 
 \section{Proposed Solution}
 \subsection{System Architecture and Address Decomposition}
@@ -257,7 +255,7 @@ Any & Reset & \texttt{IDLE} & Clear controller and cache metadata. \\
 \end{tabular}
 \end{table}
 
-A miss with a valid, dirty victim first writes the full block to the address formed from the stored tag, index, and four zero low bits. The refill uses the requested tag with the same index and zero offset. When \texttt{mem\_ready} is high in \texttt{ALLOCATE}, both arrays capture the refill on the same edge. The replay then completes through the normal hit path. On a write miss this sequence preserves the other three words from memory and marks the updated line dirty.
+A miss with a valid, dirty victim first writes the full block to the address formed from the stored tag, index, and zeroed block-offset bits. The refill uses the requested tag with the same index and zero offset. When \texttt{mem\_ready} is high in \texttt{ALLOCATE}, both arrays capture the refill on the same edge. The replay then completes through the normal hit path. On a write miss this sequence preserves the remaining words from memory and marks the updated line dirty.
 
 The controller is Mealy because \texttt{ready} depends on the tag comparison in \texttt{COMPARE\_TAG}, and the array fill enables depend on \texttt{mem\_ready} in \texttt{ALLOCATE}. The memory request and transfer direction depend on state. The debug signals report the initial lookup once per request, so a refill replay completes without adding a hit to the trace statistics.
 
@@ -266,12 +264,10 @@ The backing memory model (\texttt{rtl/main\_memory.v}) simulates a 256~KB word-a
 
 \subsection{Parameterized Design}
 To evaluate architectural trade-offs across cache capacities ($\texttt{CACHE\_SIZE} \in \{1024, 2048, 4096, 8192\}$~bytes) and line sizes ($\texttt{BLOCK\_SIZE} \in \{8, 16, 32\}$~bytes), all five RTL modules (\texttt{tag\_array}, \texttt{data\_array}, \texttt{cache\_controller}, \texttt{cache\_top}, and \texttt{main\_memory}) compute their storage geometry via \texttt{\$clog2} and \texttt{localparam} derivations \cite{hennessy2019computer, patterson2020computer}:
+Let $C_s$ and $B_s$ be the cache capacity and block size in bytes. The line count $n$, offset width $o$, index width $i$, tag width $t$, and transfer width $d$ in bits are
 \begin{align}
-\text{\texttt{NUM\_LINES}}   &= \frac{\text{\texttt{CACHE\_SIZE}}}{\text{\texttt{BLOCK\_SIZE}}}, \quad
-\text{\texttt{OFFSET\_BITS}} = \log_2(\text{\texttt{BLOCK\_SIZE}}), \\
-\text{\texttt{INDEX\_BITS}}  &= \log_2(\text{\texttt{NUM\_LINES}}), \quad
-\text{\texttt{DATA\_WIDTH}}  = 8 \times \text{\texttt{BLOCK\_SIZE}}, \\
-\text{\texttt{TAG\_BITS}}    &= \text{\texttt{ADDR\_WIDTH}} - \text{\texttt{INDEX\_BITS}} - \text{\texttt{OFFSET\_BITS}}.
+n &= C_s/B_s, & o &= \log_2 B_s, & i &= \log_2 n,\\
+t &= 32-i-o, & d &= 8 B_s.
 \end{align}
 Because a direct-mapped cache has one way per set, $\texttt{INDEX\_BITS} + \texttt{OFFSET\_BITS} = \log_2(\texttt{CACHE\_SIZE})$ holds identically across block sizes. Consequently, \texttt{TAG\_BITS} depends solely on total capacity ($22$, $21$, $20$, and $19$~bits for $1$, $2$, $4$, and $8$~KB), while doubling \texttt{BLOCK\_SIZE} at fixed capacity transfers one bit from \texttt{INDEX\_BITS} to \texttt{OFFSET\_BITS}, halves \texttt{NUM\_LINES}, and doubles the memory transfer bus \texttt{DATA\_WIDTH} ($64$, $128$, and $256$~bits). Conversely, doubling \texttt{CACHE\_SIZE} at fixed block size doubles \texttt{NUM\_LINES} and shifts one bit from \texttt{TAG\_BITS} into \texttt{INDEX\_BITS}. Both \texttt{data\_array} (word multiplexing and masked single-word write via indexed part-select) and \texttt{main\_memory} (word-loop packing across $\texttt{BLOCK\_SIZE}/4$ words) scale automatically with \texttt{-P} overrides while preserving identical default behavior at $(4096, 16)$.
 
@@ -313,229 +309,118 @@ To guarantee functional compliance, we construct an automated, self-checking ver
     \item \textbf{Golden Reference Model}: A $65536 \times 32$-bit software array (\texttt{golden\_mem}) preloaded with \texttt{traces/mem\_init.hex} provides an independent reference oracle. Every write transaction updates \texttt{golden\_mem[addr[17:2]]}, and every read transaction compares \texttt{rdata} against the oracle to immediately detect stale reads, eviction corruptions, or aliasing bugs.
 \end{enumerate}
 
-\section{Prototype Progress and Verification}
-\subsection{Simulation Setup and Toolflow}
-Hardware verification is conducted using Icarus Verilog 13.0 (\texttt{iverilog}) as the primary simulation engine, with GTKWave for interactive waveform inspection and VCD trace debugging. The toolflow compiles synthesizable Verilog modules alongside self-checking behavioral testbenches utilizing IEEE 1364-2001/1800-2012 syntax.
+\section{Results and Discussion}
 
-\subsection{Unit Verification of Subsystems}
-Each foundational subsystem is verified through dedicated self-checking testbenches:
-\begin{itemize}
-    \item \textbf{Tag Array Subsystem} (\texttt{tb/tb\_tag\_array.v}): Verified across 271 assertions, validating synchronous reset across all 256 lines, clean/dirty block allocations, asynchronous single-cycle hit comparison, selective \texttt{set\_dirty} assertion on write hits, and boundary line isolation ($0, 1, 127, 254, 255$).
-    \item \textbf{Data Array Subsystem} (\texttt{tb/tb\_data\_array.v}): Verified across 283 assertions, confirming 128-bit block refills, 32-bit sub-word read multiplexing, independent word write insertion without corrupting sibling words, and boundary addressing.
-    \item \textbf{Backing Memory Behavioral Model} (\texttt{tb/tb\_main\_memory.v}): Verified across 42 assertions, demonstrating deterministic \texttt{\$readmemh} initialization from \texttt{traces/mem\_init.hex}, accurate 10-cycle fixed access latency, 16-byte block alignment, and back-to-back write-back-to-allocate handshakes.
-\end{itemize}
+\subsection{Functional Verification and Waveforms}
+Icarus Verilog ran the self-checking unit, integration, and parameter testbenches. The tag-array, data-array, and backing-memory unit tests passed 271, 283, and 42 checks, respectively. The golden-memory test passed all nine transactions, the directed suite passed 60 assertions across eight cases, and the corner-case suite passed all eight cases. The latter exercises reset during allocation, a sustained request across completion, dirty conflicts, and consecutive hits. The parameter test passed all 12 geometries, including read-back after a dirty eviction. The repository records these results in \texttt{results/m4\_regression.log} and \texttt{results/param\_check.log}.
 
-\subsection{Integrated Cache Subsystem Verification}
-The integrated top-level cache controller (\texttt{rtl/cache\_top.v}) is validated using \texttt{tb/tb\_smoke.v}. The testbench evaluates four comprehensive end-to-end operational scenarios:
-\begin{enumerate}
-    \item \textbf{Cold Read Miss and Subsequent Hit}: The initial read to an un-cached address causes a miss, triggering a 10-cycle memory allocate handshake. Subsequent read to the same block returns data in a single clock cycle with \texttt{ready} asserted.
-    \item \textbf{Dirty Write-Back on Eviction}: Modifying a cached word asserts the dirty flag. When a conflicting address induces an eviction, the controller automatically enters \texttt{WRITE\_BACK}, updates backing memory with the modified 128-bit block, and then completes the allocation.
-    \item \textbf{Write-Allocate and Data Coherence}: Write misses successfully fetch the target block from memory, update the requested 32-bit word, mark the line dirty, and preserve coherence upon subsequent readback.
-    \item \textbf{Controller Handshake and Timing Integrity}: Confirms that \texttt{ready} pulses cleanly for single-cycle CPU handshake timing without deadlock or race conditions.
-\end{enumerate}
-All verification suites execute with 100\% passing status, and execution logs are archived in the \texttt{results/} directory.
+Figure~\ref{fig:directed-waves} plots simulation signals from \texttt{tb\_directed}. For the cold read at \texttt{0x00000028}, the initial miss pulses at 65~ns. The controller requests block \texttt{0x00000020} at 75~ns, memory raises \texttt{mem\_ready} at 175~ns, and replay raises CPU \texttt{ready} at 185~ns with data \texttt{0x0000000a}. The repeated read pulses \texttt{hit} and \texttt{ready} together at 215~ns, with \texttt{mem\_req} low. In TC-07, the dirty eviction raises \texttt{dirty\_evict} at 1145~ns. At 1155~ns, the controller requests a write to victim block \texttt{0x00000020}. At 1265~ns, the direction switches to a refill of block \texttt{0x00001020}. CPU \texttt{ready} rises at 1375~ns. Later reads of the original block verify the evicted values, including \texttt{0xDEADBEEF} at \texttt{0x00000028}.
 
-\subsection{Comprehensive Directed Verification Suite (M4)}
-To rigorously test the controller across all microarchitectural edge cases, we implemented a dedicated directed verification testbench (\texttt{tb/tb\_directed.v}) executing eight distinct functional scenarios:
-\begin{enumerate}
-    \item \textbf{TC-01 (Cold Read Miss)}: Accesses address \texttt{0x00000028} (Index \texttt{0x02}, Word~2) in an uninitialized cache. Controller transitions $\texttt{IDLE} \rightarrow \texttt{COMPARE\_TAG} \rightarrow \texttt{ALLOCATE}$, requests the 128-bit block \texttt{0x00000020} from backing memory, waits $10$ cycles, captures the line, and returns \texttt{rdata = 0x0000000a}.
-    \item \textbf{TC-02 (Read Hit)}: Re-reads address \texttt{0x00000028}. Because the line is valid and tags match, the controller asserts \texttt{hit = 1} and \texttt{ready = 1} within a single clock cycle of \texttt{COMPARE\_TAG} with zero external memory bus transactions.
-    \item \textbf{TC-03 (Write Hit \& Dirty Bit Assertion)}: Writes \texttt{0xDEADBEEF} to \texttt{0x00000028}. Evaluates as a hit in \texttt{COMPARE\_TAG}, updates Word~2 in the data array, asserts \texttt{set\_dirty = 1} in the tag array, and leaves backing memory untouched.
-    \item \textbf{TC-04 (Sub-Word Multiplexing \& Word Isolation)}: Addresses all four 32-bit words within block \texttt{0x00000020} (offsets \texttt{2'b00}, \texttt{2'b01}, \texttt{2'b10}, \texttt{2'b11}). Modifies Word~0 (\texttt{0x11110000}) and Word~3 (\texttt{0x33333333}). Subsequent readbacks confirm that all four words are independently accessible without corrupting neighboring entries.
-    \item \textbf{TC-05 (Write Miss \& Write-Allocate)}: Issues a store of \texttt{0xCAFEF00D} to unmapped address \texttt{0x00001044} (Index \texttt{0x04}, Word~1). The controller fetches the enclosing block \texttt{0x00001040} from backing memory, completes the store into Word~1, marks the line dirty, and preserves unmodified sibling words from memory.
-    \item \textbf{TC-06 (Conflict Eviction of a Clean Line)}: Fetches clean block \texttt{0x00000030} into Index \texttt{0x03}, then issues a conflicting read to \texttt{0x00002030} (same index, different tag). Because \texttt{dirty = 0}, the controller bypasses \texttt{WRITE\_BACK} and proceeds directly to \texttt{ALLOCATE}, loading the new block with zero writeback cycles.
-    \item \textbf{TC-07 (Conflict Eviction of a Dirty Line with Memory Coherence Readback)}: Line \texttt{0x02} (modified in TC-03 and TC-04) is evicted by accessing conflicting block \texttt{0x00001028}. The controller enters \texttt{WRITE\_BACK}, performs a 128-bit block write of \texttt{\{0x33333333, 0xDEADBEEF, 0x00000009, 0x11110000\}} to backing memory, and then enters \texttt{ALLOCATE}. Original block \texttt{0x00000020} is subsequently re-accessed and refilled from memory, proving that backing memory successfully retained the evicted dirty data.
-    \item \textbf{TC-08 (Index Boundary Verification)}: Validates operational consistency at the extreme boundaries of the address space: Line~0 (\texttt{0x00000000}) and Line~255 (\texttt{0x00000FFC}).
-\end{enumerate}
-
-\begin{table}[htbp]
-\caption{Directed Test Suite Execution Results (\texttt{tb\_directed.v})}
-\label{tab:directed_results}
+\begin{figure*}[!t]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{|c|l|c|c|c|c|}
-\hline
-\textbf{ID} & \textbf{Scenario} & \textbf{Address} & \textbf{Type} & \textbf{Checks} & \textbf{Status} \\
-\hline
-TC-01 & Cold Read Miss & \texttt{0x00000028} & Read & 2 & PASS \\
-TC-02 & Read Hit & \texttt{0x00000028} & Read & 2 & PASS \\
-TC-03 & Write Hit (Dirty Set) & \texttt{0x00000028} & Write & 4 & PASS \\
-TC-04 & Sub-word Multiplexing & \texttt{0x00000020..2C} & R/W & 14 & PASS \\
-TC-05 & Write Miss (Write-Allocate) & \texttt{0x00001044} & Write & 6 & PASS \\
-TC-06 & Clean Line Eviction & \texttt{0x00002030} & Read & 8 & PASS \\
-TC-07 & Dirty Eviction \& Readback & \texttt{0x00001028, 0x0028} & Read & 16 & PASS \\
-TC-08 & Boundary Lines (0 \& 255) & \texttt{0x00000000, 0x0FFC} & R/W & 8 & PASS \\
-\hline
-\multicolumn{4}{|l|}{\textbf{Total Assertion Checks Executed}} & \textbf{60} & \textbf{100\% PASS} \\
-\hline
-\end{tabular}
-\end{table}
+\includegraphics[width=.74\textwidth]{directed_waveforms.pdf}
+\caption{Signals captured from the directed RTL testbench. Top: a cold refill followed by a hit. Bottom: the first request in the dirty eviction test. The clock period is 10~ns.}
+\label{fig:directed-waves}
+\end{figure*}
 
-As summarized in Table~\ref{tab:directed_results}, all $60$ assertions passed with zero errors. The complete simulation transcript is preserved in \texttt{docs/waveforms/sim\_log.txt}.
+\subsection{Workloads and Measurement}
+Each run starts with a cold cache and issues 1,024 operations. Sequential reads consecutive words. Strided reads 512 addresses 16~B apart, then alternates 512 times between \texttt{0x2000} and \texttt{0x3000}. Conflict ping-pong alternates between \texttt{0x0000} and \texttt{0x1000} with a write every fourth request starting with the first. Random samples aligned addresses over 16~KiB using seed~42 and selects writes with probability $1/4$.
 
-\subsection{Golden Reference Model Verification (M4)}
-In addition to directed unit checks, \texttt{tb/tb\_cache.v} validates the cache controller against a $65536$-entry software memory oracle (\texttt{golden\_mem}). During simulation, every write instruction updates the reference model in parallel with the cache. On each read instruction, the returned 32-bit data is verified against both the expected value and the reference model array. A suite of nine continuous memory transactions completed with zero discrepancies, demonstrating that cache data coherency is maintained across multiple allocations and writes.
+We ran all 48 workload--geometry pairs at $L=10$ cycles using capacities of 1, 2, 4, and 8~KiB and block sizes of 8, 16, and 32~B. A second sweep used $L=5,10,20,50$ at 4~KiB and 16~B. The shared 10-cycle points come from the geometry sweep. The RTL counts the initial lookup once and counts a write-back when the memory write handshake completes. The trace testbench checks architectural read data and the hardware counters against an independent model. The software 3Cs classifier checks first references, then probes an equal-line-count fully associative LRU cache on each direct-mapped miss. It updates the reference cache on every access and reproduces the RTL access, hit, and miss counts for all 48 geometry rows.
 
-\subsection{Waveform Analysis and Critical Signal Observations (M4)}
-To enable visual inspection of signal timing, simulation waveforms were captured to \texttt{docs/waveforms/cache\_directed.vcd} and documented in \texttt{docs/waveforms/README.md}. Key behavioral observations include:
-\begin{itemize}
-    \item \textbf{Handshake Timing}: On a cache hit (TC-02), \texttt{ready} asserts combinationally in \texttt{COMPARE\_TAG} when \texttt{tag\_hit} evaluates true, completing in one cycle. On a cache miss (TC-01), \texttt{miss} pulses for exactly one cycle during the initial lookup and is suppressed during the subsequent refill replay via the \texttt{refilled} register.
-    \item \textbf{Memory Handshake Latency}: During \texttt{ALLOCATE} and \texttt{WRITE\_BACK}, the controller asserts \texttt{mem\_req} and maintains state until the memory model asserts \texttt{mem\_ready} exactly $10$ clock cycles later.
-    \item \textbf{Two-Phase Dirty Eviction}: In TC-07, \texttt{dirty\_evict} trips upon detecting a tag mismatch on a dirty line. The controller enters \texttt{WRITE\_BACK} ($10$ cycles with \texttt{mem\_we = 1}) before smoothly transitioning into \texttt{ALLOCATE} ($10$ cycles with \texttt{mem\_we = 0}), completely servicing the replacement in $22$ total clock cycles without bus contention.
-\end{itemize}
+For $N$ accesses, $M$ misses, and $C$ measured cycles, the hit path takes two counted edges, for capture and completion. One additional edge precedes the first request. For $M>0$, the mean additional miss penalty and AMAT are
+\begin{align}
+P_{\mathrm{miss}} &= (C-1-2N)/M,\\
+\mathrm{AMAT} &= 2+(M/N)P_{\mathrm{miss}}=(C-1)/N .
+\end{align}
+The miss penalty includes refill, controller overhead, and dirty write-back. With zero misses, AMAT equals the two-cycle hit time. For sequential at 4~KiB and 16~B, $C=5121$ and $M=256$, so $P_{\mathrm{miss}}=12$ cycles and AMAT is 5.00~cycles/access.
 
-\subsection{Corner Case Analysis and Verification (M1)}
-In Phase~II Stage~1, we developed a dedicated corner-case verification testbench (\texttt{tb/tb\_corner\_cases.v}) to systematically evaluate edge-case conditions, handshake hazards, and abort scenarios across the integrated cache controller. The suite couples the DUT to a golden reference memory model and validates microarchitectural state across eight distinct corner cases:
+\subsection{Geometry Sweep and Miss Classes}
+Table~\ref{tab:baseline} gives measured counters, classified misses, and computed AMAT at the baseline. Figure~\ref{fig:hit-slices} shows the two geometry cuts, and Fig.~\ref{fig:amat-grid} shows all 48 AMAT values. The raw counters and AMAT calculations are archived in \texttt{results/sweep\_all\_traces.csv} and \texttt{results/param\_sweeps\_amat.csv}. Miss classes are in \texttt{results/miss\_classification.csv}.
 
-\begin{enumerate}
-    \item \textbf{CC-01: First Access After Reset (All Lines Invalid)}: Immediately following synchronous reset assertion, every line in the tag array must have $\texttt{valid\_out} = 0$. When the CPU issues read access \texttt{0x00001040}, the controller must recognize the cold miss, suppress spurious dirty evictions ($\texttt{dirty\_evict} = 0$), advance through \texttt{ALLOCATE}, fill the line, and return the correct word.
-    \item \textbf{CC-02: Read Miss with Clean Victim}: When reading address \texttt{0x00002040} (mapping to the same index \texttt{0x04} occupied by valid clean line \texttt{0x00001040}), the controller detects a clean tag mismatch, bypasses \texttt{WRITE\_BACK}, enters \texttt{ALLOCATE} directly, and overwrites the line without redundant bus traffic.
-    \item \textbf{CC-03: Write Hit to a Dirty Line}: A store of \texttt{0xCAFE0001} to \texttt{0x00002040} hits an already dirty line. The controller asserts \texttt{ready} combinationally, updates Word~0 in the data array, preserves dirty status ($\texttt{dirty} = 1$), and keeps backing memory un-accessed.
-    \item \textbf{CC-04: Write Miss with Dirty Victim}: Issuing a store of \texttt{0xFACEB00C} to \texttt{0x00003044} (Index \texttt{0x04}) encounters dirty victim \texttt{0x00002040}. The controller initiates a two-phase replacement: first entering \texttt{WRITE\_BACK} to flush the dirty 128-bit block \texttt{0x00002040} to main memory, then transitioning to \texttt{ALLOCATE} to fetch block \texttt{0x00003040}, and finally completing the sub-word store into Word~1.
-    \item \textbf{CC-05: Conflict Ping-Pong on Same Index with Different Tags}: Alternating stores between \texttt{0x00001080} and \texttt{0x00002080} (both mapping to Index \texttt{0x08}) induce repeated dirty conflict evictions. Golden memory checking verifies that successive write-backs and allocations preserve complete data integrity without word corruption.
-    \item \textbf{CC-06: Reset in the Middle of a Transaction (Abort and Recovery)}: While the controller is actively waiting in \texttt{ALLOCATE} during a 10-cycle memory fetch, synchronous active-high \texttt{rst} is asserted. The FSM immediately aborts the active transaction, resets to \texttt{IDLE}, and invalidates all cache lines. Subsequent read requests to memory complete without pipeline stalls or invalid state persistence.
-    \item \textbf{CC-07: Request Held High Through Ready (Continuous Streaming)}: To verify continuous request throughput without deadlocks, \texttt{req} is maintained high across cycle boundaries while updating \texttt{addr}. Because \texttt{ready} is a Mealy output in \texttt{COMPARE\_TAG}, the controller completes the current access and immediately latches the streaming request into \texttt{IDLE}/\texttt{COMPARE\_TAG}.
-    \item \textbf{CC-08: Back-to-Back Requests Across Distinct Indices}: Consecutive read hits across alternating indices (\texttt{0x10} and \texttt{0x20}) execute in consecutive 2-cycle intervals with zero bubble cycles, achieving maximum theoretical CPU bandwidth.
-\end{enumerate}
-
-\begin{table}[htbp]
-\caption{Corner Case Verification Results (\texttt{tb\_corner\_cases.v})}
-\label{tab:corner_cases}
-\centering
-\scriptsize
-\setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{|c|p{2.6cm}|p{2.2cm}|c|c|}
-\hline
-\textbf{Case} & \textbf{Scenario Description} & \textbf{Stimulus Address / Op} & \textbf{Cycles} & \textbf{Status} \\
-\hline
-CC-01 & Cold Miss Post-Reset & \texttt{0x00001040} (Read) & 12 & PASS \\
-CC-02 & Clean Victim Eviction & \texttt{0x00002040} (Read) & 12 & PASS \\
-CC-03 & Write Hit to Dirty Line & \texttt{0x00002040} (Write) & 2 & PASS \\
-CC-04 & Dirty Victim Write Miss & \texttt{0x00003044} (Write) & 23 & PASS \\
-CC-05 & Conflict Ping-Pong & \texttt{0x00001080} $\leftrightarrow$ \texttt{0x2080} & 67 & PASS \\
-CC-06 & Reset Abort \& Recovery & \texttt{0x00004050} (Abort @ ALLOC) & 15 & PASS \\
-CC-07 & Continuous Req Streaming & \texttt{0x00001040} $\rightarrow$ \texttt{0x1044} & 4 & PASS \\
-CC-08 & Back-to-Back Distinct Hits & \texttt{0x00000100} $\rightarrow$ \texttt{0x0200} & 4 & PASS \\
-\hline
-\multicolumn{3}{|l|}{\textbf{Total Corner Cases Evaluated}} & \textbf{8} & \textbf{100\% PASS} \\
-\hline
-\end{tabular}
-\end{table}
-
-As documented in Table~\ref{tab:corner_cases}, all eight corner cases passed self-checking assertion criteria with zero errors, confirming microarchitectural compliance under complex interleavings and boundary conditions. Simulation logs are archived in \texttt{results/corner\_cases\_simulation.log}.
-
-% Keep the preceding wide directed-test table clear of the M5 results.
-\clearpage
-\subsection{Sequential Trace and Performance Counters (M5)}
-The hardware counters record one event at the initial tag lookup. The controller suppresses the hit pulse when a miss replays after refill. Read and write totals increment at CPU completion, and write-backs increment when the memory handshake completes a block write. The cycle counter covers every rising edge out of reset, including idle edges. The trace test compares read data and counters against an independent backing-word and cache-metadata model.
-
-The trace starts from reset at byte address zero and issues $1024$ consecutive word reads. Each 16-byte block holds four words. The first word causes a compulsory miss and the next three hit by spatial locality \cite{smith1982cache}. Icarus Verilog reported $768$ hits, $256$ misses, no writes or write-backs, and $5121$ cycles. The measured hit and miss rates were $75.00\%$ and $25.00\%$. The cycle total includes the trace driver's startup idle edge and CPU and memory handshakes. It measures the elapsed trace run.
-
-\subsection{Workloads and Methodology}
-The trace testbench starts each 1,024-request run with a cold cache. The sequential trace reads consecutive 32-bit words and measures the spatial reuse available within each 16-byte block. The strided trace first reads with a 16-byte stride to touch a fresh block per access. It then alternates between two blocks separated by the 4~KB cache capacity to exercise repeated replacement at one index. The conflict ping-pong trace alternates between addresses \texttt{0x0000} and \texttt{0x1000}. Every fourth request is a write, beginning with the first request, so subsequent accesses exercise dirty write-back as well as tag conflicts. The random trace uses seed 42 to sample word-aligned addresses uniformly over 16~KiB with a write probability of $1/4$. This working set exceeds the default cache capacity and tests reuse under mixed reads and writes.
-
-The testbench checks read data and the hardware counters against an independent reference model. The memory latency sweep repeats each trace at 5, 10, 20, and 50 cycles while holding the cache size at 4~KB and the block size at 16~bytes. The hit and miss rates are the corresponding counter totals divided by the number of accesses. We compute average memory access time (AMAT) in cycles per access as
-\begin{equation}
-\mathrm{AMAT} = T_{\mathrm{hit}} + r_{\mathrm{miss}} P_{\mathrm{miss}}.
-\end{equation}
-The hit path occupies $T_{\mathrm{hit}}=2$ counted clock edges for request capture and completion. For $N$ accesses, $M>0$ misses, and $C$ measured cycles, the mean additional miss penalty is
-\begin{equation}
-P_{\mathrm{miss}} = \frac{C - 1 - N T_{\mathrm{hit}}}{M}.
-\end{equation}
-The subtraction removes one idle startup edge and the hit-path baseline. The remaining cycles include refill, controller overhead, and any dirty write-backs. If there are zero misses, AMAT equals the hit time.
-
-\subsection{Parameterized Sweeps, Miss Classification, and AMAT Evaluation (M4)}
-To evaluate architectural trade-offs across geometry and program locality, we executed cycle-accurate Verilog sweeps across 48 configurations ($4\times\text{cache sizes } [1, 2, 4, 8\text{~KB}] \times 3\times\text{block sizes } [8, 16, 32\text{~B}] \times 4\text{ workloads}$) using \texttt{scripts/run\_all\_sweeps.py}. Furthermore, we applied Hill's classic 3Cs taxonomy \cite{hill1988case, hennessy2019computer} to classify every miss into compulsory (cold), capacity, and conflict components via \texttt{scripts/miss\_classification.py}. Table~\ref{tab:phase2_evaluation} presents the hardware counters, miss decomposition, and measured AMAT for representative configurations.
-
-\begin{table*}[t]
-\caption{Hardware Performance Counters, 3Cs Miss Decomposition, and AMAT Evaluation across Workloads ($\mathrm{MEM\_LATENCY}=10$)}
-\label{tab:phase2_evaluation}
+\begin{table*}[!t]
+\caption{Baseline Results at 4~KiB, 16~B Blocks, and 10-Cycle Memory Latency. Each Workload Issues 1,024 Requests.}
+\label{tab:baseline}
 \centering
 \small
-\setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{@{}llrrrrrrrrr@{}}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrrrrrrr@{}}
 \toprule
-\textbf{Workload} & \textbf{Config} & \textbf{Hits} & \textbf{Misses} & \textbf{Dirty WB} & \textbf{Hit Rate} & \textbf{Compulsory} & \textbf{Capacity} & \textbf{Conflict} & \textbf{Cycles} & \textbf{AMAT (cyc)} \\
+Workload & Hits & Misses & Hit rate & Write-backs & Compulsory & Conflict & Capacity & Cycles & AMAT (cycles/access) \\
 \midrule
-Sequential & 4~KB, 8~B   & 512  & 512  & 0   & 50.00\% & 512 (100\%) & 0  & 0           & 8,193  & 8.00 \\
-Sequential & 4~KB, 16~B  & 768  & 256  & 0   & 75.00\% & 256 (100\%) & 0  & 0           & 5,121  & 5.00 \\
-Sequential & 4~KB, 32~B  & 896  & 128  & 0   & 87.50\% & 128 (100\%) & 0  & 0           & 3,585  & 3.50 \\
-\addlinespace
-Strided    & 4~KB, 16~B  & 0    & 1,024& 0   & 0.00\%  & 514 (50.2\%)& 0  & 510 (49.8\%)& 14,337 & 14.00 \\
-Strided    & 8~KB, 16~B  & 510  & 514  & 0   & 49.80\% & 514 (100\%) & 0  & 0 (0.0\%)   & 8,217  & 8.02 \\
-Strided    & 8~KB, 32~B  & 766  & 258  & 0   & 74.80\% & 258 (100\%) & 0  & 0 (0.0\%)   & 5,145  & 5.02 \\
-\addlinespace
-Conflict   & 4~KB, 16~B  & 0    & 1,024& 256 & 0.00\%  & 2 (0.2\%)   & 0  & 1,022 (99.8\%)& 17,153 & 16.75 \\
-Conflict   & 8~KB, 16~B  & 1,022& 2    & 0   & 99.80\% & 2 (100\%)   & 0  & 0 (0.0\%)   & 2,073  & 2.02 \\
-\addlinespace
-Random     & 1~KB, 16~B  & 55   & 969  & 228 & 5.37\%  & 644 (66.5\%)& 273 (28.2\%) & 52 (5.4\%)  & 16,185 & 15.76 \\
-Random     & 4~KB, 16~B  & 195  & 829  & 171 & 19.04\% & 644 (77.7\%)& 133 (16.0\%) & 52 (6.3\%)  & 13,878 & 13.55 \\
-Random     & 8~KB, 16~B  & 296  & 728  & 92  & 28.91\% & 644 (88.5\%)& 9 (1.2\%)    & 75 (10.3\%) & 11,797 & 11.51 \\
-Random     & 8~KB, 32~B  & 395  & 629  & 124 & 38.57\% & 442 (70.3\%)& 9 (1.4\%)    & 178 (28.3\%)& 10,961 & 10.70 \\
+Sequential & 768 & 256 & 75.00\% & 0 & 256 & 0 & 0 & 5,121 & 5.00 \\
+Strided & 0 & 1,024 & 0.00\% & 0 & 514 & 510 & 0 & 14,337 & 14.00 \\
+Conflict ping-pong & 0 & 1,024 & 0.00\% & 256 & 2 & 1,022 & 0 & 17,153 & 16.75 \\
+Random & 195 & 829 & 19.04\% & 171 & 644 & 52 & 133 & 13,878 & 13.55 \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
-\subsubsection{Spatial Locality and Block Size Scaling}
-As demonstrated by the sequential trace across block sizes 8~B, 16~B, and 32~B, all 512, 256, and 128 misses are 100\% compulsory cold misses \cite{smith1982cache}. Doubling the block size from 8~B to 16~B and 32~B yields an exact $2\times$ reduction in compulsory misses ($512 \to 256 \to 128$), improving hit rate from $50.00\%$ to $75.00\%$ and $87.50\%$. Correspondingly, AMAT decreases from $8.00$ to $5.00$ and $3.50$ cycles. Because all referenced addresses reside within an aligned 4~KB region and are accessed sequentially without reuse, cache capacity scaling from 1~KB to 8~KB does not alter hit rates, confirming that spatial prefetching within wider cache blocks is the sole driver of locality for non-recurrent streams.
+\begin{figure*}[!tb]
+\centering
+\includegraphics[width=.485\textwidth]{hit_rate_vs_cache_size.pdf}\hfill
+\includegraphics[width=.485\textwidth]{hit_rate_vs_block_size.pdf}
+\par\smallskip
+\includegraphics[width=.46\textwidth]{miss_classification_breakdown.pdf}\hfill
+\includegraphics[width=.43\textwidth]{amat_vs_latency.pdf}
+\caption{Top: hit rates at 10-cycle memory latency, scanning cache size at 16~B per block (left) and block size at 4~KiB (right). Bottom: 3Cs miss counts at 16~B (left) and AMAT versus backing-memory latency at 4~KiB and 16~B (right).}
+\label{fig:hit-slices}
+\end{figure*}
 
-\subsubsection{Resolution of Conflict Thrashing at 8~KB Capacity}
-The conflict ping-pong workload demonstrates the pathological vulnerability of direct-mapped indexing \cite{hill1988case}. Two memory blocks separated by exactly 4~KB (\texttt{0x0000} and \texttt{0x1000}) are referenced alternately. In the default 4~KB cache (and similarly at 1~KB and 2~KB), both addresses produce index 0 ($(\texttt{0x1000} \gg 4) \pmod{256} = 0$). Despite having a total working set of only two 16-byte lines (32 bytes), direct-mapped mapping constraints force repeated ping-pong evictions. Of the 1,024 misses, exactly 2 are compulsory (the initial reference to each address) and 1,022 ($99.8\%$) are pure conflict misses. Furthermore, because every fourth request is a write, 256 dirty write-backs are triggered, inflating execution time to 17,153 cycles and AMAT to 16.75 cycles.
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{amat_by_config.pdf}
+\caption{Measured AMAT in cycles/access over the geometry grid at 10-cycle memory latency.}
+\label{fig:amat-grid}
+\end{figure}
 
-When the cache capacity expands to 8~KB, the index field expands from 8 bits to 9 bits ($S=512$ sets). Consequently, \texttt{0x0000} maps to set index 0, whereas \texttt{0x1000} maps to set index 256 ($(\texttt{0x1000} \gg 4) \pmod{512} = 256$). This bit transition completely eliminates set collision:
-conflict misses drop from 1,022 to 0, hits jump from 0 to 1,022 ($99.80\%$ hit rate), dirty evictions drop to zero, total cycles collapse from 17,153 to 2,073 (an $87.9\%$ reduction), and AMAT plummets from 16.75 to 2.02 cycles. A similar resolution occurs in the strided trace during its second-phase ping-pong, where 510 conflict misses are eradicated in the 8~KB configuration.
+Sequential's 16~B line contains four words. One compulsory miss brings in the next three words, yielding 768 hits and 256 misses. As blocks widen from 8 to 16 to 32~B, the hit rate rises from 50.00\% to 75.00\% to 87.50\%. The gain per doubling shrinks from 25 to 12.5 percentage points. Capacity has no effect on the measured sequential hit rate for any block size because the stream consumes each line before advancing to new addresses.
 
-\subsubsection{Random Access and Capacity Scaling}
-For the pseudorandom trace sampled uniformly across 16~KiB, the working set exceeds the default cache capacity. Miss classification reveals that compulsory misses remain constant at 644 for 16-byte lines ($62.9\%$ of accesses). As capacity increases from 1~KB to 8~KB, capacity misses decrease sharply ($273 \to 133 \to 9$), reducing total misses from 969 to 728 and lowering AMAT from 15.76 to 11.51 cycles. Widening the block size to 32~B further exploits fortuitous spatial proximity in random strides, driving hit rate to $38.57\%$ and AMAT to 10.70 cycles.
+At 4~KiB, the strided workload stays at 0.00\% through 16~B. At 32~B, two successive 16~B-spaced references in the first half share a block, yielding 256 hits and a 25.00\% hit rate. The 510 conflict misses in its second half remain. For random at 4~KiB, hit rate increases from 14.36\% to 23.34\% from 8 to 32~B. Compulsory misses fall from 800 to 442, but the number of lines falls from 512 to 128 and classified capacity misses rise from 23 to 273. At 1~KiB, random gains just six hits from 8 to 32~B while dirty write-backs rise from 218 to 234. Its AMAT increases from 15.72 to 15.82~cycles/access despite the higher hit rate.
+
+The conflict trace has 0.00\% hits and 1,022 conflict misses from 1 through 4~KiB at 16~B. The address separation is 4,096~B, so both block numbers map to index zero at those sizes. At 8~KiB, the same addresses map to indices 0 and 256. Only two compulsory misses remain, hit rate reaches 99.80\%, and AMAT falls from 16.75 to 2.02~cycles/access. Figure~\ref{fig:hit-slices} shows the miss counts. The two blocks occupy just 32~B at the baseline, which suggests that a two-way set or a one-entry victim cache could retain both blocks after warm-up \cite{jouppi1990improving}. This inference concerns the measured alternating pattern. Both architectures remain future work.
+
+\subsection{Sensitivity to Memory Latency}
+At a fixed geometry, the 5-, 10-, 20-, and 50-cycle runs give identical hit, miss, and write-back counts per workload. Each extra memory cycle increases AMAT by $(M+W)/N$, where $W$ is the number of completed dirty write-backs. From 5 to 50~cycles, sequential increases from 3.75 to 15.00~cycles/access with a slope of 0.25, and strided increases from 9.00 to 54.00 with a slope of 1.00. Conflict increases from 10.50 to 66.75 with a slope of 1.25 because it incurs 1,024 refills and 256 write-backs. Random increases from 8.67 to 52.61 with a slope of $1000/1024$ because its 829 refills and 171 write-backs nearly equal the strided transfer count. These values come from \texttt{results/latency\_sweep.csv} and \texttt{results/amat\_table.csv}.
+
+
 
 \section{Individual Contributions}
-Table~\ref{tab:contributions} summarizes the implementation and report work recorded in the Git history.
+Table~\ref{tab:contributions} selects representative entries from \texttt{git log --format='\%an | \%s'} on the final history. Display names follow the report author list.
 
-\begin{table*}[t]
-\caption{Individual contributions by stage}
+\begin{table}[!t]
+\caption{Representative Commit Subjects}
 \label{tab:contributions}
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
-\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\begin{tabular}{@{}L{.15\textwidth}L{.10\textwidth}L{.23\textwidth}L{.18\textwidth}L{.27\textwidth}@{}}
+\begin{tabular}{@{}cp{.82\columnwidth}@{}}
 \toprule
-\textbf{Member} & \textbf{Roll No.} & \textbf{Modules and tests} &
-\textbf{Report sections} & \textbf{Commit areas} \\
+Member & Git history evidence \\
 \midrule
-M1 Mustyala Sadhvik & 2401020099 &
-Implemented tag array, unit test, and Phase~II corner-case verification suite. &
-Abstract, introduction, locality review, and corner-case analysis &
-Established repository skeleton, documented address decomposition, and verified 8 corner cases. \\
-\addlinespace
-M2 Varun Udata & 2401010481 &
-Implemented the data array, backing memory, full RTL parameterization, and 12-config sweep runner. &
-Write policies, datapath, and parameterized design &
-Added the latency handshake, memory spec, 12-config verification (\texttt{tb\_param\_check}), and \texttt{run\_sweep.py}. \\
-\addlinespace
-M3 Amogha Raj Sandur & 2401010397 &
-Implemented the controller FSM and wired the arrays and memory into the top level. &
-Miss classes, architecture, FSM, and transitions &
-Added and verified request capture, replay after refill, and dirty write-back in the smoke test. \\
-\addlinespace
-M4 Yachna Khanna & 2401010509 &
-Built the golden-memory harness, directed testbench, and simulation runner. &
-Verification methods, directed results, and waveforms &
-Documented the test plan and recorded the directed simulation and waveform guide. \\
-\addlinespace
-M5 Shrihari K N & 2401010448 &
-Added performance counters, the sequential trace generator, and the self-checking trace driver. &
-FPGA review, trace results, contributions, and conclusion &
-Recorded the measured hit rate and prepared the README, timed video script, and report bibliography. \\
+M1 & \texttt{07ee4a7} test: corner-case testbench \\
+M2 & \texttt{dfe1f5d} feat(mem): block-wide memory by BLOCK\_SIZE \\
+M3 & \texttt{ffab70c} feat(amat): calculate access time from measured trace cycles \\
+M4 & \texttt{6afe24b} results: miss classification analysis and breakdown for direct-mapped configurations \\
+M5 & \texttt{6eb7604} results: cache-size and block-size sweeps \\
 \bottomrule
 \end{tabular}
-\end{table*}
+\end{table}
+
+\textbf{M1, Mustyala Sadhvik.} Established the repository and IEEEtran source, documented the address split, and implemented the tag array and its unit test. In Phase~II, added eight corner-case scenarios and documented reset and request handshakes.
+
+\textbf{M2, Udata Varun.} Built the data array and backing-memory model with unit tests. Parameterized the arrays and transfers, then added the geometry test and single-trace sweep runner.
+
+\textbf{M3, Amogha Raj Sandur.} Implemented the controller FSM, integrated the top level, and added the smoke test. Added deterministic workloads, measured the latency sweep, and computed AMAT from elapsed RTL cycles.
+
+\textbf{M4, Yachna Khanna.} Built the golden-memory and directed testbenches, simulation runner, and waveform guide. Ran the Phase~II regressions and geometry grid, implemented the 3Cs classifier, and plotted the first evaluation figures.
+
+\textbf{M5, Shrihari K N.} Implemented the performance counters and the initial self-checking sequential trace replay. Repeated the final grid and latency experiments, produced the final figures and waveform excerpts, and completed the report and viva guide.
+
 
 \section{Conclusion and Future Work}
-The Phase~I prototype implements a blocking direct-mapped cache with write-back and write-allocate. The integrated directed tests verify its memory handshake and preservation of dirty data after eviction. A cold sequential trace yields the expected $75.00\%$ hit rate. Future work can compare additional access patterns and measure resource use and timing on an FPGA.
+The parameterized Verilog cache passed the directed, corner-case, and geometry tests. At 4~KiB and 16~B, sequential reaches 75.00\% hits and 5.00~cycles/access, while conflict ping-pong produces 1,022 conflict misses and 16.75~cycles/access. Mapping the alternating addresses to separate lines at 8~KiB reduces that workload's AMAT to 2.02~cycles/access. The latency sweep shows that the number of backing-memory transfers, including dirty write-backs, determines the AMAT slope in this blocking design.
 
-The accompanying technical demonstration video recording is accessible at: \url{https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link}.
+The cache blocks while a miss is in flight, accepts only one outstanding request, and has one way per set. Its fixed mapping gives it no choice of victim and therefore no replacement policy. The evaluation uses synthetic traces and a fixed-latency behavioral memory. Future work can add set associativity with LRU replacement, evaluate a small victim cache for repeated conflicts, and test stream prefetching for predictable accesses. FPGA synthesis would quantify resource use and hit-path timing alongside these cycle counts.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
