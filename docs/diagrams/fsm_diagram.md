@@ -39,3 +39,17 @@ the next rising edge. State encodings are `IDLE=0`, `COMPARE_TAG=1`,
 `WRITE_BACK=2`, `ALLOCATE=3`. The `hit`, `miss`, and `dirty_evict` debug
 signals describe the initial comparison. A refill retry completes with `ready`
 and produces no second hit/miss event.
+
+### Corner-Case FSM Behavior and Timing Specifications
+
+1. **Mid-Transaction Reset Abort and Recovery**:
+   Synchronous active-high `rst` has absolute priority across all states. If asserted during `WRITE_BACK` or `ALLOCATE`, the FSM aborts the ongoing handshake and returns immediately to `IDLE` on the next rising clock edge. Metadata registers in the Tag Array are simultaneously cleared, while the backing memory completes or terminates its internal counter. Subsequent transactions initiate cleanly from `IDLE` with cold misses.
+
+2. **Continuous Streaming (`req` Held High Through `ready`)**:
+   Because `ready` is a Mealy output asserted combinationally in `COMPARE_TAG` upon tag match, the CPU core may maintain `req = 1` across clock edges with updated address/data. On the rising clock edge where `ready` is sampled, the controller registers the completed access and transitions to `IDLE`, immediately latching the next streaming request to enter `COMPARE_TAG` on the subsequent cycle without bus deadlocks.
+
+3. **Back-to-Back Hit Throughput**:
+   Back-to-back requests targeting distinct cache indices or identical lines execute in consecutive 2-cycle slots (`IDLE` latch $\rightarrow$ `COMPARE_TAG` hit/ready) with zero idle bubble cycles, preserving peak processor bus bandwidth.
+
+4. **Two-Phase Dirty Eviction Handshake**:
+   When a miss occurs on a valid, dirty line, the controller latches the victim's reconstructed block address (`{tag_out, index, 4'b0000}`) and transitions to `WRITE_BACK`. Upon `mem_ready = 1`, the controller transitions directly to `ALLOCATE` without returning to `IDLE`. The new block is refilled using the requested address (`{req_addr[31:4], 4'b0000}`), and on completion advances to `COMPARE_TAG` with `refilled = 1` to complete the CPU transfer.
