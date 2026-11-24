@@ -16,11 +16,15 @@
 // Interface & Integration Guide for M3 (Controller / Cache Top):
 //
 // 1. Parameters:
-//    - INDEX_WIDTH  : 8 bits   (addr[11:4], selects one of 256 lines)
-//    - OFFSET_WIDTH : 2 bits   (addr[3:2], selects one of 4 words in block)
+//    - CACHE_SIZE   : Cache capacity in bytes (1024, 2048, 4096, 8192)
+//    - BLOCK_SIZE   : Block size in bytes (8, 16, 32)
 //    - WORD_WIDTH   : 32 bits  (CPU data word width)
-//    - BLOCK_BITS   : 128 bits (16 bytes per cache line = 4 x 32-bit words)
-//    - NUM_LINES    : 256      (4096 B cache / 16 B block)
+//    - NUM_LINES    : Derived via CACHE_SIZE / BLOCK_SIZE
+//    - INDEX_WIDTH  : Derived via $clog2(NUM_LINES)
+//    - OFFSET_WIDTH : Derived via $clog2(BLOCK_SIZE / (WORD_WIDTH / 8))
+//    - BLOCK_BITS   : Derived via BLOCK_SIZE * 8 (64, 128, or 256 bits)
+//    (Direct overrides of INDEX_WIDTH/OFFSET_WIDTH/BLOCK_BITS/NUM_LINES remain
+//     supported for standalone unit testbenches.)
 //
 // 2. Port List:
 //    - clk            : System clock (positive-edge triggered)
@@ -56,11 +60,13 @@
 `timescale 1ns / 1ps
 
 module data_array #(
-    parameter INDEX_WIDTH  = 8,
-    parameter OFFSET_WIDTH = 2,
+    parameter CACHE_SIZE   = 4096,
+    parameter BLOCK_SIZE   = 16,
     parameter WORD_WIDTH   = 32,
-    parameter BLOCK_BITS   = 128,
-    parameter NUM_LINES    = 256
+    parameter NUM_LINES    = CACHE_SIZE / BLOCK_SIZE,
+    parameter INDEX_WIDTH  = $clog2(NUM_LINES),
+    parameter OFFSET_WIDTH = $clog2(BLOCK_SIZE / (WORD_WIDTH / 8)),
+    parameter BLOCK_BITS   = BLOCK_SIZE * 8
 )(
     input  wire                    clk,
     input  wire                    rst,
@@ -74,10 +80,16 @@ module data_array #(
     output wire [BLOCK_BITS-1:0]   block_out
 );
 
+    // Derived bit widths using $clog2 for parameterized block/cache sizing
+    localparam OFFSET_BITS = $clog2(BLOCK_SIZE);
+    localparam INDEX_BITS  = INDEX_WIDTH;
+    localparam TAG_BITS    = 32 - INDEX_BITS - OFFSET_BITS;
+    localparam DATA_WIDTH  = BLOCK_BITS;
+
     // -------------------------------------------------------------------------
-    // Internal Storage: 256 cache lines x 128 bits (4 KB total data capacity)
+    // Internal Storage: NUM_LINES cache lines x DATA_WIDTH bits
     // -------------------------------------------------------------------------
-    reg [BLOCK_BITS-1:0] data_mem [0:NUM_LINES-1];
+    reg [DATA_WIDTH-1:0] data_mem [0:NUM_LINES-1];
 
     integer i;
 
@@ -88,19 +100,15 @@ module data_array #(
         if (rst) begin
             // Clear all data lines on reset so waveforms/reads start deterministic
             for (i = 0; i < NUM_LINES; i = i + 1) begin
-                data_mem[i] <= {BLOCK_BITS{1'b0}};
+                data_mem[i] <= {DATA_WIDTH{1'b0}};
             end
         end else if (write_block_en) begin
-            // Full 128-bit line fill during ALLOCATE takes priority over word write
+            // Full line fill during ALLOCATE takes priority over word write
             data_mem[index] <= block_in;
         end else if (write_word_en) begin
-            // Selective 32-bit word update; hardware preserves the other 3 lanes
-            case (word_offset)
-                2'b00: data_mem[index][31:0]   <= word_in;
-                2'b01: data_mem[index][63:32]  <= word_in;
-                2'b10: data_mem[index][95:64]  <= word_in;
-                2'b11: data_mem[index][127:96] <= word_in;
-            endcase
+            // Indexed part-select updates only the addressed 32-bit word lane
+            // for any BLOCK_SIZE (8B = 2 words, 16B = 4 words, 32B = 8 words)
+            data_mem[index][word_offset * WORD_WIDTH +: WORD_WIDTH] <= word_in;
         end
     end
 
@@ -111,13 +119,7 @@ module data_array #(
     assign block_out = data_mem[index];
 
     always @(*) begin
-        case (word_offset)
-            2'b00:   word_out = block_out[31:0];
-            2'b01:   word_out = block_out[63:32];
-            2'b10:   word_out = block_out[95:64];
-            2'b11:   word_out = block_out[127:96];
-            default: word_out = {WORD_WIDTH{1'b0}};
-        endcase
+        word_out = block_out[word_offset * WORD_WIDTH +: WORD_WIDTH];
     end
 
 endmodule

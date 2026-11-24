@@ -12,9 +12,14 @@
 // Interface & Integration Guide for M2 and M3:
 //
 // 1. Parameters:
-//    - TAG_WIDTH   : 20 bits (Address[31:12])
-//    - INDEX_WIDTH : 8 bits  (Address[11:4], selecting 256 lines)
-//    - NUM_LINES   : 256 entries (2^INDEX_WIDTH)
+//    - CACHE_SIZE  : Cache data capacity in bytes (1024, 2048, 4096, 8192)
+//    - BLOCK_SIZE  : Cache line size in bytes (8, 16, 32)
+//    - ADDR_WIDTH  : Physical address width (default 32 bits)
+//    - NUM_LINES   : Derived via CACHE_SIZE / BLOCK_SIZE
+//    - INDEX_WIDTH : Derived via $clog2(NUM_LINES)
+//    - TAG_WIDTH   : Derived via ADDR_WIDTH - INDEX_WIDTH - $clog2(BLOCK_SIZE)
+//    (Legacy direct overrides of TAG_WIDTH/INDEX_WIDTH/NUM_LINES remain valid
+//     for standalone unit tests.)
 //
 // 2. Port Descriptions:
 //    - clk         : System clock (positive-edge triggered)
@@ -39,9 +44,12 @@
 `timescale 1ns / 1ps
 
 module tag_array #(
-    parameter TAG_WIDTH   = 20,
-    parameter INDEX_WIDTH = 8,
-    parameter NUM_LINES   = 256
+    parameter CACHE_SIZE  = 4096,
+    parameter BLOCK_SIZE  = 16,
+    parameter ADDR_WIDTH  = 32,
+    parameter NUM_LINES   = CACHE_SIZE / BLOCK_SIZE,
+    parameter INDEX_WIDTH = $clog2(NUM_LINES),
+    parameter TAG_WIDTH   = ADDR_WIDTH - INDEX_WIDTH - $clog2(BLOCK_SIZE)
 )(
     input  wire                   clk,
     input  wire                   rst,
@@ -56,12 +64,18 @@ module tag_array #(
     output wire                   dirty_out
 );
 
+    // Derived bit widths using $clog2 for parameterized sizing
+    localparam OFFSET_BITS = $clog2(BLOCK_SIZE);
+    localparam INDEX_BITS  = INDEX_WIDTH;
+    localparam TAG_BITS    = TAG_WIDTH;
+    localparam DATA_WIDTH  = BLOCK_SIZE * 8;
+
     // -------------------------------------------------------------------------
-    // Internal Storage Arrays: 256 lines
+    // Internal Storage Arrays: NUM_LINES entries
     // -------------------------------------------------------------------------
-    reg [TAG_WIDTH-1:0] tag_mem   [0:NUM_LINES-1];
-    reg                 valid_mem [0:NUM_LINES-1];
-    reg                 dirty_mem [0:NUM_LINES-1];
+    reg [TAG_BITS-1:0] tag_mem   [0:NUM_LINES-1];
+    reg                valid_mem [0:NUM_LINES-1];
+    reg                dirty_mem [0:NUM_LINES-1];
 
     integer i;
 
