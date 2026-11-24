@@ -1,205 +1,128 @@
-# Direct-Mapped Cache Controller in Verilog — Phase I
+# Direct-Mapped Cache Controller in Verilog
 
-[![Course](https://img.shields.io/badge/Course-Modern%20Computer%20Architecture-blue.svg)](#)
-[![Simulator](https://img.shields.io/badge/Simulator-Icarus%20Verilog%2013.0-green.svg)](#)
-[![Format](https://img.shields.io/badge/Report-IEEEtran%20Conference-red.svg)](#)
-[![Video](https://img.shields.io/badge/Prototype%20Video-Google%20Drive-yellow.svg)](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)
+Modern Computer Architecture · Phase II final submission
 
-This repository contains the complete **Phase I** deliverable (30% weightage) for **Modern Computer Architecture**: a cycle-accurate, synthetically verifiable **4 KB Direct-Mapped L1 Cache Controller** implemented in Verilog HDL with write-back and write-allocate policies, accompanied by comprehensive directed and trace-driven verification testbenches, GTKWave waveform artifacts, a timed 5-member video demonstration, and a publication-format IEEEtran technical conference report.
+The RTL implements a blocking, direct-mapped cache with write-back and write-allocate. Phase II verifies the controller's corner cases, tests 12 cache geometries, and measures four workloads across geometry and backing-memory latency.
 
----
+[Phase II IEEE report](docs/phase2_report.pdf) · [Results analysis](docs/results_analysis.md) · [Viva preparation](docs/viva_prep.md) · [Prototype demonstration video](docs/video/MCAProject.mp4) · [Google Drive video folder](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)
 
-## Phase I Submission Deliverables Summary
+## Default design
 
-| Deliverable | Evaluation Weight | Primary Artefact Links | Description |
+| Item | Value |
+|---|---|
+| CPU interface | 32-bit byte address, aligned 32-bit word reads and writes |
+| Cache | 4 KB (4,096 B), direct-mapped, 256 lines |
+| Block | 16 B, four words, 128-bit memory datapath |
+| Address split | Tag `[31:12]`, index `[11:4]`, block word offset `[3:2]`, byte offset `[1:0]` |
+| Line metadata | Valid bit, dirty bit, 20-bit tag |
+| Write policy | Write-back and write-allocate |
+| Controller | Four-state Mealy FSM with `IDLE`, `COMPARE_TAG`, `WRITE_BACK`, and `ALLOCATE` |
+| Memory protocol | Blocking, one outstanding CPU request, `MEM_LATENCY=10` cycles |
+
+See the [address split](docs/diagrams/address_split.md), [block diagram](docs/diagrams/block_diagram.md), [FSM](docs/diagrams/fsm_diagram.md), and [parameterization specification](docs/parameterization.md).
+
+## Team
+
+| Stage | Member | Roll number | Completed work |
 |---|---|---|---|
-| **1. IEEE Project Report** | **10 Marks** | • [Compiled PDF](docs/phase1_report.pdf)<br>• [LaTeX Source](docs/report/main.tex)<br>• [BibTeX References](docs/report/references.bib) | Full IEEEtran manuscript covering Abstract, Literature Review, Microarchitectural Solution, Subsystem Verification, Individual Contributions, and verified references. |
-| **2. Prototype Demonstration Video** | **15 Marks** | • [**Video Link (Google Drive)**](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)<br>• [Video File (`docs/video/MCAProject.mp4`)](docs/video/MCAProject.mp4)<br>• [Timed Demo Script](docs/video_script.md) | 4:45 technical walkthrough introducing all 5 members, presenting block/FSM diagrams, live simulation execution, GTKWave waveform analysis, and 75.00% hit rate trace verification. |
-| **3. GitHub Repository & Code Artefacts** | **5 Marks** | • [GitHub Repository](https://github.com/Sadhvik999/mca_project)<br>• [RTL Directory](rtl/)<br>• [Verification Suites](tb/)<br>• [Simulation Logs](results/) | Modular RTL modules, self-checking testbenches, trace benchmarks, architectural diagrams, reproducible simulation runner, and verified commit history across all 5 members. |
+| M1 | Mustyala Sadhvik | 2401020099 | Tag array and unit tests, address mapping, corner-case suite |
+| M2 | Udata Varun | 2401010481 | Data array and main memory, parameterized geometry, sweep runner and geometry tests |
+| M3 | Amogha Raj Sandur | 2401010397 | Controller and integration, workload generation, latency runs and AMAT |
+| M4 | Yachna Khanna | 2401010509 | Directed and golden-model verification, grid evaluation, 3Cs classification, initial plots |
+| M5 | Shrihari K N | 2401010448 | Performance counters and trace replay, final sweeps and figures, IEEE report and viva guide |
 
----
+## Run all testbenches
 
-## Prototype Video Demonstration (15 Marks)
-
-- **Video Access Link**: **[Google Drive Folder](https://drive.google.com/drive/folders/1WNsOvDRVHSj_vMWKZjpoxVolT6G_y51Q?usp=drive_link)** | **[Repository Video File](docs/video/MCAProject.mp4)**
-- **Timed Script Reference**: [`docs/video_script.md`](docs/video_script.md) (Target Runtime: 4:45 $\le$ 5 minutes)
-
-### Video Presentation Structure & Member Introductions
-
-| Timestamp | Presenter | Roll No. | Topic / Demonstration Point | Visual Artefact |
-|---|---|---|---|---|
-| **0:00 – 0:30** | All 5 Members | — | **Team Introductions**: Mustyala Sadhvik, Varun Udata, Amogha Raj Sandur, Yachna Khanna, Shrihari K N. | Title Slide / Video Camera |
-| **0:30 – 1:12** | Mustyala Sadhvik (M1) | 2401020099 | **Project Concept & Address Partitioning**: 4 KB direct-mapped cache, 16-byte lines, 20-bit tag, 8-bit index, 2-bit word, 2-bit byte offset. | [`docs/diagrams/address_split.md`](docs/diagrams/address_split.md), [`block_diagram.md`](docs/diagrams/block_diagram.md) |
-| **1:12 – 1:49** | Varun Udata (M2) | 2401010481 | **Storage Arrays & Memory Handshake**: 256-line Data Array, 32-bit word muxing, 128-bit block bus, 10-cycle memory latency model. | [`rtl/data_array.v`](rtl/data_array.v), [`rtl/main_memory.v`](rtl/main_memory.v) |
-| **1:49 – 2:33** | Amogha Raj Sandur (M3) | 2401010397 | **Cache Controller FSM**: 4 states (`IDLE`, `COMPARE_TAG`, `WRITE_BACK`, `ALLOCATE`), single-cycle hit, dirty write-back before refill. | [`docs/diagrams/fsm_diagram.md`](docs/diagrams/fsm_diagram.md), [`rtl/cache_controller.v`](rtl/cache_controller.v) |
-| **2:33 – 3:52** | Yachna Khanna (M4) | 2401010509 | **Live Simulation & Waveform Inspection**: Directed test execution (`run_sim.sh`), cold misses, hits, dirty evictions, GTKWave trace analysis. | [`docs/waveforms/README.md`](docs/waveforms/README.md), GTKWave (`cache_directed.vcd`) |
-| **3:52 – 4:45** | Shrihari K N (M5) | 2401010448 | **Performance Counters & Trace Verification**: 1,024 sequential reads, 768 hits, 256 misses, 75.00% hit rate, summary & closing. | [`rtl/perf_counters.v`](rtl/perf_counters.v), Sequential Trace (`tb_trace`) |
-
----
-
-## Team Members & Individual Contributions
-
-The project was executed in strictly sequential, collaborative stages. All 5 members authored their respective RTL modules, self-checking testbenches, and report sections:
-
-| Member | Stage | Roll No. | Core RTL / Verification Module | Assigned Report Sections | Primary Deliverable |
-|---|---|---|---|---|---|
-| **Mustyala Sadhvik** | M1 | 2401020099 | [`rtl/tag_array.v`](rtl/tag_array.v), [`tb/tb_tag_array.v`](tb/tb_tag_array.v) | Abstract, Section I (Intro), Section II-A (Locality & Orgs) | Repository structure, address split specs, Tag Array with async read & `set_dirty`, 271 unit tests passed. |
-| **Varun Udata** | M2 | 2401010481 | [`rtl/data_array.v`](rtl/data_array.v), [`rtl/main_memory.v`](rtl/main_memory.v), [`tb/tb_data_array.v`](tb/tb_data_array.v), [`tb/tb_main_memory.v`](tb/tb_main_memory.v) | Section II-B (Write Policies), Section III-C & E (Datapath & Memory) | 256-line Data Array, 10-cycle backing memory model with `$readmemh` preload, memory model spec, 325 unit tests passed. |
-| **Amogha Raj Sandur** | M3 | 2401010397 | [`rtl/cache_controller.v`](rtl/cache_controller.v), [`rtl/cache_top.v`](rtl/cache_top.v), [`tb/tb_smoke.v`](tb/tb_smoke.v) | Section II-C (Miss Classes), Section III-A & D (Architecture & FSM) | 4-state Mealy FSM controller, top-level integration, smoke test with dirty eviction & refill replay, FSM transition table. |
-| **Yachna Khanna** | M4 | 2401010509 | [`tb/tb_cache.v`](tb/tb_cache.v), [`tb/tb_directed.v`](tb/tb_directed.v), [`scripts/run_sim.sh`](scripts/run_sim.sh) | Section II-D (Verification Methods), Section IV-B (Directed Results) | Golden reference memory model, 8-case directed verification suite (TC-01 to TC-08, 60 checks), simulation runner script, GTKWave waveform guide. |
-| **Shrihari K N** | M5 | 2401010448 | [`rtl/perf_counters.v`](rtl/perf_counters.v), [`tb/tb_trace.v`](tb/tb_trace.v), [`scripts/gen_trace.py`](scripts/gen_trace.py) | Section II-E (FPGA Review), Section IV-C (Trace Results), Section V & VI | Hardware performance counters, sequential trace generator (1,024 accesses), trace verification harness (75.00% hit rate), report assembly. |
-
----
-
-## Architectural & Design Specifications
-
-| Parameter | Specification | Details / Description |
-|---|---|---|
-| **Cache Capacity** | 4 KB ($4096\text{ bytes}$) | Total on-chip SRAM data capacity |
-| **Organization** | Direct-Mapped | 1 way per set ($S = 256$ lines) |
-| **Block / Line Size** | 16 Bytes | 4 words ($4 \times 32\text{ bits} = 128\text{ bits}$ block bus) |
-| **Number of Cache Lines** | 256 | Indexed via $2^8 = 256$ entries |
-| **Physical Address Width** | 32 bits | Byte-addressable physical memory space |
-| **Tag Field** | Bits `[31:12]` (20 bits) | Compared in single cycle to verify cache hit |
-| **Index Field** | Bits `[11:4]` (8 bits) | Addresses line in Tag and Data Arrays ($0 \dots 255$) |
-| **Block (Word) Offset** | Bits `[3:2]` (2 bits) | Selects 32-bit word within 128-bit cache line block |
-| **Byte Offset** | Bits `[1:0]` (2 bits) | Byte alignment within 32-bit word |
-| **Line Metadata** | Valid, Dirty, Tag[19:0] | 1 valid bit, 1 dirty bit, 20-bit tag per line |
-| **Write Policy** | Write-Back + Write-Allocate | CPU writes update cache and set dirty; dirty blocks written to memory on eviction |
-| **Concurrency Mode** | Blocking | Single outstanding transaction serviced at a time |
-| **Backing Memory Latency**| `MEM_LATENCY = 10` cycles | Block-wide 128-bit memory transfer handshake |
-| **Controller States** | `IDLE`, `COMPARE_TAG`, `WRITE_BACK`, `ALLOCATE` | 4-state Mealy FSM |
-
----
-
-## Repository Structure & Project Artefacts
-
-```text
-mca_project/
-├── CONTRIBUTING.md                # Collaboration standards, branch conventions, and commit policies
-├── README.md                      # Primary Phase I submission documentation
-├── docs/                          # Architectural and technical documentation
-│   ├── phase1_report.pdf          # Compiled Phase I IEEE conference report (PDF)
-│   ├── memory_model_spec.md       # Memory subsystem and latency handshake specifications
-│   ├── test_plan.md               # Directed verification matrix and coverage goals
-│   ├── video_script.md            # Timed 5-member video presentation script (4:45)
-│   ├── video/                     # Technical demonstration video directory
-│   │   └── MCAProject.mp4         # 4:54 complete prototype demonstration video (1080p MP4)
-│   ├── diagrams/                  # Architectural diagrams and specifications
-│   │   ├── address_split.md       # 32-bit address field decomposition and worked examples
-│   │   ├── block_diagram.md       # Microarchitectural Mermaid block diagram
-│   │   └── fsm_diagram.md         # Mealy FSM state transitions and handshake timing
-│   ├── report/                    # LaTeX IEEEtran report source files
-│   │   ├── main.tex               # Primary IEEE conference LaTeX manuscript
-│   │   ├── references.bib         # Verified classic architectural references
-│   │   └── README.md              # Compilation guide for local pdflatex and Overleaf
-│   └── waveforms/                 # GTKWave inspection documentation
-│       ├── README.md              # Waveform navigation guide for directed testcases TC-01..TC-08
-│       └── sim_log.txt            # Directed testbench console output log
-├── results/                       # Verification logs and execution summaries
-│   ├── simulation_summary.md      # Consolidated verification summary across all testbenches
-│   ├── tag_array_simulation.log   # M1 Tag Array unit test log (271 checks passed)
-│   ├── data_array_simulation.log  # M2 Data Array unit test log (283 checks passed)
-│   ├── main_memory_simulation.log # M2 Main Memory model test log (42 checks passed)
-│   └── cache_top_smoke_simulation.log # M3 Integrated smoke test log (PASS)
-├── rtl/                           # Synthesizable Verilog RTL source code
-│   ├── tag_array.v                # 256-entry Tag Array with valid & dirty tracking (M1)
-│   ├── data_array.v               # 256-entry x 128-bit Data Array with word multiplexing (M2)
-│   ├── main_memory.v              # Backing memory model with 10-cycle latency handshake (M2)
-│   ├── cache_controller.v         # 4-state Mealy FSM Cache Controller (M3)
-│   ├── cache_top.v                # Top-level cache controller integrating arrays and memory (M3)
-│   └── perf_counters.v            # Performance counters for hits, misses, evictions, cycles (M5)
-├── scripts/                       # Simulation automation and trace generators
-│   ├── run_sim.sh                 # Unified bash runner for directed, smoke, and trace suites
-│   ├── gen_mem_init.py            # Generates deterministic 64K-word memory preload hex file
-│   └── gen_trace.py               # Generates synthetic memory trace access files
-├── tb/                            # Verilog self-checking testbenches
-│   ├── tb_tag_array.v             # Unit testbench for tag_array (271 assertions)
-│   ├── tb_data_array.v            # Unit testbench for data_array (283 assertions)
-│   ├── tb_main_memory.v           # Unit testbench for main_memory (42 assertions)
-│   ├── tb_smoke.v                 # Integration smoke testbench
-│   ├── tb_cache.v                 # Golden reference software memory model
-│   ├── tb_directed.v              # 8-scenario directed verification suite (60 assertions)
-│   └── tb_trace.v                 # Benchmark memory trace driver and scoreboard
-└── traces/                        # Trace benchmarks and initialization data
-    ├── mem_init.hex               # 65,536-word backing memory initial state
-    └── sequential.txt             # 1,024-operation sequential word access benchmark
-```
-
----
-
-## How to Run & Verify All Artefacts
-
-### Prerequisites
-- **Icarus Verilog** (`iverilog` and `vvp`, version 10+ or 13+)
-- **Python 3** (for trace generation and memory initialization)
-- **GTKWave** (optional, for inspecting `.vcd` waveform dumps)
-- **LaTeX / pdflatex** or **Overleaf** (for report compilation)
-
-### 1. Unified Automated Simulation Runner
-The easiest way to execute all tests is via the provided shell script:
+Use Bash from the repository root. Install Icarus Verilog (`iverilog` and `vvp`), Python 3.10 or later, and Matplotlib for plots. The final artifacts were generated with Icarus Verilog 13.0 and Matplotlib 3.10.0. GTKWave is optional. To build the PDF, install a TeX distribution with IEEEtran and `latexmk`.
 
 ```bash
-# Run directed test suite (TC-01 through TC-08, 60 assertions)
-./scripts/run_sim.sh --test tb_directed
-
-# Run entire verification suite (smoke, directed, and golden model checks)
-./scripts/run_sim.sh --test all
+python3 -m venv build/venv
+source build/venv/bin/activate
+python -m pip install 'matplotlib==3.10.0'
 ```
 
-### 2. Sequential Benchmark Trace Verification (75.00% Hit Rate)
-Run the 1,024-access sequential word trace to verify cache hit rate and performance counters:
+The repository includes the memory image and the four trace fixtures. To regenerate them with the measured settings:
 
 ```bash
-# 1. Generate sequential memory trace
-python3 scripts/gen_trace.py --pattern sequential --count 1024 --output traces/sequential.txt
+python3 scripts/gen_mem_init.py
+for trace in sequential strided conflict random; do
+  python3 scripts/gen_trace.py --pattern "$trace" --count 1024 --seed 42
+done
+```
 
-# 2. Compile and run trace driver testbench
+Run the module tests, integrated smoke/golden/directed tests, and Phase II corner and geometry checks:
+
+```bash
+for test in tb_tag_array tb_data_array tb_main_memory tb_corner_cases; do
+  ./scripts/run_sim.sh --test "$test"
+done
+./scripts/run_sim.sh --test all  # tb_smoke, tb_cache, tb_directed
+./scripts/check_params.sh       # tb_param_check at all 12 geometries
+```
+
+Run the self-checking trace testbench at the baseline geometry:
+
+```bash
 mkdir -p build
 iverilog -g2012 -Wall -s tb_trace -o build/tb_trace.vvp rtl/*.v tb/tb_trace.v
-vvp build/tb_trace.vvp +TRACE=traces/sequential.txt
+for trace in sequential strided conflict random; do
+  vvp build/tb_trace.vvp "+TRACE=traces/$trace.txt"
+done
 ```
 
-**Benchmark Output:**
-- Total Operations: **1,024**
-- Cache Hits: **768**
-- Cache Misses: **256**
-- Write-backs: **0**
-- Execution Cycles: **5,121**
-- **Measured Hit Rate**: **75.00%** (Exactly 1 cold compulsory miss followed by 3 spatial hits per 16-byte block)
+`tb_smoke` is the top-level smoke test. `tb_cache` is the golden-memory harness. The trace test checks returned words and performance counters. Custom trace rows use `R <hex_addr>` or `W <hex_addr> <hex_data>`, with word-aligned byte addresses from `0x00000000` through `0x0003FFFC`.
 
-### 3. Module-Level Unit Testbenches
-Each individual hardware module is self-checking:
+## Reproduce the results, plots, and report
 
 ```bash
-# Tag Array (M1): 271 assertions checked
-iverilog -g2012 -o tb/tb_tag_array.vvp rtl/tag_array.v tb/tb_tag_array.v && vvp tb/tb_tag_array.vvp
-
-# Data Array (M2): 283 assertions checked
-iverilog -g2012 -o tb/tb_data_array.vvp rtl/data_array.v tb/tb_data_array.v && vvp tb/tb_data_array.vvp
-
-# Main Memory Model (M2): 42 assertions checked
-iverilog -g2012 -o tb/tb_main_memory.vvp rtl/main_memory.v tb/tb_main_memory.v && vvp tb/tb_main_memory.vvp
-
-# Integrated Cache Smoke Test (M3): 4 end-to-end scenarios
-iverilog -g2012 -Wall -s tb_smoke -o build/tb_smoke.vvp rtl/*.v tb/tb_smoke.v && vvp build/tb_smoke.vvp +vcd
+python3 scripts/run_all_sweeps.py --latency-sweep
+python3 scripts/miss_classification.py
+./scripts/run_sim.sh --test tb_directed
+MPLCONFIGDIR="$PWD/build/matplotlib" XDG_CACHE_HOME="$PWD/build/cache" \
+  python3 scripts/plot_results.py --directed-vcd docs/waveforms/cache_directed.vcd
 ```
 
-### 4. Waveform Inspection in GTKWave
-To inspect the cycle-accurate signals (state, tag match, memory handshake) from the directed test suite:
+The first command invokes `run_sweep.py` for all 48 workload/geometry points at 10 cycles and adds the 5, 20, and 50-cycle runs at 4 KB / 16 B. At 10 cycles, the latency table reuses the four matching geometry runs. `amat.py` derives timing from the measured counters. The plot script checks the model's 3Cs totals against the RTL counters before rendering. To rerun an individual point:
+
+```bash
+python3 scripts/run_sweep.py --trace conflict.txt --configs 4096:16 8192:16 \
+  --output build/conflict_demo.csv --overwrite
+python3 scripts/amat.py build/conflict_demo.csv --output build/conflict_demo_amat.csv
+```
+
+| Output | What it contains |
+|---|---|
+| [Cache-size sweep](results/sweep_cache_size.csv) | All four traces at 1, 2, 4, and 8 KB with 16 B blocks |
+| [Block-size sweep](results/sweep_block_size.csv) | All four traces at 8, 16, and 32 B with 4 KB capacity |
+| [Full grid counters](results/sweep_all_traces.csv) · [AMAT](results/param_sweeps_amat.csv) | All 48 geometry runs |
+| [Latency counters](results/latency_sweep.csv) · [AMAT](results/amat_table.csv) | All four traces at 5, 10, 20, and 50 cycles |
+| [Miss classification](results/miss_classification.csv) | Compulsory, conflict, and capacity counts for each workload and geometry |
+| [Figures](results/plots/) | PNG and PDF plots, including the directed VCD excerpts |
+
+To demo the design, run the directed test and open its VCD in GTKWave. Show a cold refill and subsequent hit (TC-01/02), then a dirty write-back followed by a refill (TC-07). Finish by rerunning the conflict comparison above. [Waveform guide](docs/waveforms/README.md)
 
 ```bash
 gtkwave docs/waveforms/cache_directed.vcd
 ```
-Refer to the [Waveform Guide](docs/waveforms/README.md) for marker locations of TC-01 through TC-08.
 
-### 5. Compiling the Technical Report
+Compile the final report from the repository root. On Overleaf, use the [report build instructions](docs/report/README.md).
+
 ```bash
-cd docs/report
-pdflatex main.tex
-bibtex main
-pdflatex main.tex
-pdflatex main.tex
-cp main.pdf ../phase1_report.pdf
+mkdir -p build/report
+(cd docs/report && latexmk -pdf -interaction=nonstopmode -halt-on-error \
+  -outdir=../../build/report main.tex)
+cp build/report/main.pdf docs/phase2_report.pdf
 ```
-Alternatively, upload `docs/report/` to [Overleaf](https://www.overleaf.com/) and compile using pdfLaTeX.
+
+## Measured results at 4 KB / 16 B / 10 cycles
+
+| Workload | Hits | Misses | Write-backs | Hit rate | Total cycles | AMAT (cycles/access) |
+|---|---:|---:|---:|---:|---:|---:|
+| Sequential | 768 | 256 | 0 | 75.00% | 5,121 | 5.00 |
+| Strided | 0 | 1,024 | 0 | 0.00% | 14,337 | 14.00 |
+| Conflict ping-pong | 0 | 1,024 | 256 | 0.00% | 17,153 | 16.75 |
+| Random (seed 42) | 195 | 829 | 171 | 19.04% | 13,878 | 13.55 |
+
+Each row has 1,024 accesses. Sequential hit rate rises from 50.00% at 8 B to 75.00% at 16 B and 87.50% at 32 B. The conflict workload hits 0.00% at 1–4 KB and 99.80% at 8 KB because its two blocks map to different lines. At the baseline geometry, increasing memory latency from 5 to 50 cycles raises conflict AMAT from 10.50 to 66.75 cycles/access. [Measured block-size sweep](results/sweep_block_size.csv) · [Measured cache-size sweep](results/sweep_cache_size.csv) · [AMAT table](results/amat_table.csv)
+
+The one-way organization fixes the victim by index. Associativity with LRU, a victim cache, and prefetching remain future work. The reported cycle counts come from Icarus Verilog and a behavioral backing memory.
