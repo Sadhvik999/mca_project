@@ -1,0 +1,281 @@
++zsh:3> mkdir -p build results
++zsh:6> tb=tb_tag_array
++zsh:7> iverilog -g2012 -Wall -s tb_tag_array -o build/m4_tb_tag_array.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_tag_array.v
++zsh:8> vvp build/m4_tb_tag_array.vvp
+VCD info: dumpfile tb/tag_array.vcd opened for output.
+----------------------------------------------------------------
+Starting Self-Checking Testbench: tag_array (256 entries)
+----------------------------------------------------------------
+[STAGE 1] Testing synchronous reset across all 256 entries...
+[STAGE 1] PASS: All 256 lines successfully initialized to V=0, D=0, Tag=0x00000.
+
+[STAGE 2] Testing write allocation (clean line insertion)...
+
+[STAGE 3] Testing write allocation (dirty line insertion)...
+
+[STAGE 4] Testing selective set_dirty on clean line (8'h34)...
+
+[STAGE 5] Testing addressing isolation across boundary entries...
+
+[STAGE 6] Testing eviction overwrite at line 8'h00...
+
+[STAGE 7] Testing synchronous re-reset functionality...
+----------------------------------------------------------------
+Tests Executed: 271 assertions checked
+>>> TEST STATUS: PASS <<<
+All tag_array operations verified successfully!
+----------------------------------------------------------------
+tb/tb_tag_array.v:256: $finish called at 461000 (1ps)
++zsh:6> tb=tb_data_array
++zsh:7> iverilog -g2012 -Wall -s tb_data_array -o build/m4_tb_data_array.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_data_array.v
++zsh:8> vvp build/m4_tb_data_array.vvp
+VCD info: dumpfile tb/data_array.vcd opened for output.
+----------------------------------------------------------------
+Starting Self-Checking Testbench: data_array (256 x 128-bit)
+----------------------------------------------------------------
+[STAGE 1] Checking synchronous reset across all 256 lines...
+[STAGE 1] PASS: All 256 lines reset to zero.
+[STAGE 2] Testing single-word write & word read on line 8'h12...
+[STAGE 3] Testing 128-bit block fill and word-offset reads on line 8'h34...
+[STAGE 4] Testing word write isolation (no corruption of sibling words)...
+[STAGE 5] Testing boundary line addressing and isolation...
+[STAGE 6] Testing simultaneous write_block_en and write_word_en priority...
+[STAGE 7] Testing synchronous re-reset...
+----------------------------------------------------------------
+Tests Executed: 283 assertions checked
+>>> TEST STATUS: PASS <<<
+All data_array operations verified successfully!
+----------------------------------------------------------------
+tb/tb_data_array.v:284: $finish called at 580000 (1ps)
++zsh:6> tb=tb_main_memory
++zsh:7> iverilog -g2012 -Wall -s tb_main_memory -o build/m4_tb_main_memory.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_main_memory.v
++zsh:8> vvp build/m4_tb_main_memory.vvp
+VCD info: dumpfile tb/main_memory.vcd opened for output.
+----------------------------------------------------------------
+Starting Self-Checking Testbench: main_memory (MEM_LATENCY=10)
+----------------------------------------------------------------
+[STAGE 1] Verifying $readmemh preload and 10-cycle read latency...
+[STAGE 2] Testing 128-bit block write & read-back on 0x0000_0100...
+[STAGE 3] Testing unaligned addresses map to aligned 16-byte blocks...
+[STAGE 4] Testing back-to-back Moore write-back -> allocate handshake...
+[STAGE 5] Checking synchronous reset preserves memory contents...
+----------------------------------------------------------------
+Tests Executed: 42 assertions checked
+>>> TEST STATUS: PASS <<<
+All main_memory operations verified successfully!
+----------------------------------------------------------------
+tb/tb_main_memory.v:309: $finish called at 1827000 (1ps)
++zsh:6> tb=tb_smoke
++zsh:7> iverilog -g2012 -Wall -s tb_smoke -o build/m4_tb_smoke.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_smoke.v
++zsh:8> vvp build/m4_tb_smoke.vvp
+PASS: cold read miss and same-address hit
+PASS: dirty write-back, clean replacement, and preserved neighboring word
+PASS: write allocate, dirty eviction, and memory readback
+PASS: cache_top smoke test (MEM_LATENCY=10)
+tb/tb_smoke.v:111: $finish called at 1290000 (1ps)
++zsh:6> tb=tb_cache
++zsh:7> iverilog -g2012 -Wall -s tb_cache -o build/m4_tb_cache.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_cache.v
++zsh:8> vvp build/m4_tb_cache.vvp
+===============================================================
+  tb_cache: Golden Reference Model Verification Harness
+===============================================================
+PASS: cpu_read [0x00000010] = 0x00000004 (golden match)
+PASS: cpu_read [0x00000010] = 0x00000004 (golden match)
+PASS: cpu_read [0x00000010] = 0xa1b2c3d4 (golden match)
+PASS: cpu_read [0x00000014] = 0x00000005 (golden match)
+PASS: cpu_read [0x00000018] = 0x00000006 (golden match)
+PASS: cpu_read [0x0000001c] = 0x00000007 (golden match)
+PASS: cpu_read [0x00000088] = 0x55667788 (golden match)
+---------------------------------------------------------------
+ALL TESTS PASSED: 9 transactions verified against golden model.
+===============================================================
+tb/tb_cache.v:240: $finish called at 560000 (1ps)
++zsh:6> tb=tb_directed
++zsh:7> iverilog -g2012 -Wall -s tb_directed -o build/m4_tb_directed.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_directed.v
++zsh:8> vvp build/m4_tb_directed.vvp
+===============================================================================
+   DIRECT-MAPPED CACHE CONTROLLER - DIRECTED VERIFICATION SUITE
+   Specifications: 4KB Cache, 16B Block, 256 Lines, Write-Back/Write-Allocate
+===============================================================================
+
+-------------------------------------------------------------------------------
+TC-01: Cold Read Miss (Index 0x02, Word 2, Addr: 0x00000028)
+       Expects: Initial miss, 10-cycle memory allocate, clean line installed.
+-------------------------------------------------------------------------------
+  [CHECK] TC-01 Passed: Cold miss allocated and serviced.
+
+-------------------------------------------------------------------------------
+TC-02: Read Hit (Index 0x02, Word 2, Addr: 0x00000028)
+       Expects: Immediate single-cycle hit, zero memory delay.
+-------------------------------------------------------------------------------
+  [CHECK] TC-02 Passed: Cache read hit completed in 1 cycle.
+
+-------------------------------------------------------------------------------
+TC-03: Write Hit (Dirty Set) (Addr: 0x00000028, Data: 0xDEADBEEF)
+       Expects: Cache hit, SRAM update, dirty bit set, no bus traffic.
+-------------------------------------------------------------------------------
+  [CHECK] TC-03 Passed: Write hit modified SRAM and asserted dirty.
+
+-------------------------------------------------------------------------------
+TC-04: Sub-word / Multi-word Access (Block base 0x00000020, Words 0, 1, 2, 3)
+       Expects: All 4 words independently accessible; writing one word
+                does not corrupt neighboring words.
+-------------------------------------------------------------------------------
+  [CHECK] TC-04 Passed: 4-word multiplexing and word isolation verified.
+
+-------------------------------------------------------------------------------
+TC-05: Write Miss (Write-Allocate) (Addr: 0x00001044, Data: 0xCAFEF00D)
+       Expects: Miss allocates block from memory, writes word 1, sets dirty.
+-------------------------------------------------------------------------------
+  [CHECK] TC-05 Passed: Write miss successfully write-allocated.
+
+-------------------------------------------------------------------------------
+TC-06: Conflict Eviction of Clean Line (Index 0x03, Addr1: 0x0030, Addr2: 0x2030)
+       Expects: Miss replaces clean line immediately without memory writeback.
+-------------------------------------------------------------------------------
+  [CHECK] TC-06 Passed: Clean conflict eviction bypassed write-back.
+
+-------------------------------------------------------------------------------
+TC-07: Conflict Eviction of Dirty Line with Write-Back & Coherence Read-Back
+       Target line index 0x02 is currently dirty (modified in TC-03/04).
+       Step 1: Access conflicting address 0x00001028 (Index 0x02, Tag 0x00001).
+               Expects: WRITE_BACK (128-bit store) -> ALLOCATE (128-bit fetch).
+       Step 2: Access 0x00000020 and 0x00000028 again to verify evicted data
+               was safely committed to backing memory.
+-------------------------------------------------------------------------------
+  [CHECK] TC-07 Passed: 128-bit dirty line writeback verified via memory read-back.
+
+-------------------------------------------------------------------------------
+TC-08: Boundary Lines Verification (Line 0: 0x00000000, Line 255: 0x00000FF0)
+       Expects: Extremities of index space function identically.
+-------------------------------------------------------------------------------
+  [CHECK] TC-08 Passed: Boundary line indices 0 and 255 verified.
+
+===============================================================================
+  VERIFICATION SUMMARY
+===============================================================================
+  >>> ALL TESTS PASSED <<<
+  Total successful assertion checks: 60
+  Failures: 0
+===============================================================================
+
+tb/tb_directed.v:412: $finish called at 2020000 (1ps)
++zsh:6> tb=tb_corner_cases
++zsh:7> iverilog -g2012 -Wall -s tb_corner_cases -o build/m4_tb_corner_cases.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_corner_cases.v
++zsh:8> vvp build/m4_tb_corner_cases.vvp
+===============================================================================
+   DIRECT-MAPPED CACHE CONTROLLER - CORNER CASE VERIFICATION SUITE
+===============================================================================
+
+-------------------------------------------------------------------------------
+TEST CASE 1: First Access After Reset (All Lines Invalid)
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 1)
+
+-------------------------------------------------------------------------------
+TEST CASE 2: Read Miss with a Clean Victim
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 2)
+
+-------------------------------------------------------------------------------
+TEST CASE 3: Write to a Dirty Line (Hit)
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 3)
+
+-------------------------------------------------------------------------------
+TEST CASE 4: Write Miss with a Dirty Victim
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 4)
+
+-------------------------------------------------------------------------------
+TEST CASE 5: Write to Same Index with Different Tag (Conflict Ping-Pong)
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 5)
+
+-------------------------------------------------------------------------------
+TEST CASE 6: Reset in Middle of a Transaction (Abort & Recover)
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 6)
+
+-------------------------------------------------------------------------------
+TEST CASE 7: Request Held High Through Ready (Continuous Streaming)
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 7)
+
+-------------------------------------------------------------------------------
+TEST CASE 8: Back-to-Back Requests Across Distinct Indices
+-------------------------------------------------------------------------------
+>>> RESULT: PASS (Test Case 8)
+
+===============================================================================
+   CORNER CASE VERIFICATION SUMMARY
+===============================================================================
+   Total Corner Cases Evaluated : 8
+   Total Passed                 : 8
+   Total Failed                 : 0
+===============================================================================
+>>> ALL TESTS PASSED <<<
+
+tb/tb_corner_cases.v:438: $finish called at 3070000 (1ps)
++zsh:6> tb=tb_param_check
++zsh:7> iverilog -g2012 -Wall -s tb_param_check -o build/m4_tb_param_check.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_param_check.v
++zsh:8> vvp build/m4_tb_param_check.vvp
+PASS: CACHE_SIZE=4096 BLOCK_SIZE=16 LINES=256 (TAG=20b INDEX=8b OFFSET=4b DATA=128b)
+tb/tb_param_check.v:156: $finish called at 1500000 (1ps)
++zsh:12> iverilog -g2012 -Wall -s tb_trace -o build/m4_tb_trace.vvp rtl/cache_controller.v rtl/cache_top.v rtl/data_array.v rtl/main_memory.v rtl/perf_counters.v rtl/tag_array.v tb/tb_trace.v
++zsh:13> trace=sequential
++zsh:14> vvp build/m4_tb_trace.vvp '+TRACE=traces/sequential.txt'
+Trace: traces/sequential.txt
+Accesses:     1024
+Hits:         768
+Misses:       256
+Write-backs:  0
+Total cycles: 5121
+Reads:        1024
+Writes:       0
+Hit rate:     75.00%
+Miss rate:    25.00%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 51230000 (1ps)
++zsh:13> trace=strided
++zsh:14> vvp build/m4_tb_trace.vvp '+TRACE=traces/strided.txt'
+Trace: traces/strided.txt
+Accesses:     1024
+Hits:         0
+Misses:       1024
+Write-backs:  0
+Total cycles: 14337
+Reads:        1024
+Writes:       0
+Hit rate:     0.00%
+Miss rate:    100.00%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 143390000 (1ps)
++zsh:13> trace=conflict
++zsh:14> vvp build/m4_tb_trace.vvp '+TRACE=traces/conflict.txt'
+Trace: traces/conflict.txt
+Accesses:     1024
+Hits:         0
+Misses:       1024
+Write-backs:  256
+Total cycles: 17153
+Reads:        768
+Writes:       256
+Hit rate:     0.00%
+Miss rate:    100.00%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 171550000 (1ps)
++zsh:13> trace=random
++zsh:14> vvp build/m4_tb_trace.vvp '+TRACE=traces/random.txt'
+Trace: traces/random.txt
+Accesses:     1024
+Hits:         195
+Misses:       829
+Write-backs:  171
+Total cycles: 13878
+Reads:        780
+Writes:       244
+Hit rate:     19.04%
+Miss rate:    80.96%
+PASS: trace data and counters match the reference model
+tb/tb_trace.v:195: $finish called at 138800000 (1ps)
